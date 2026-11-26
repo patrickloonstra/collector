@@ -66,11 +66,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok(signed, 'de vervangen app is geldig ondertekend');
 
   // 3. De vervangen app start en werkt, en de bibliotheek van vóór de update staat er nog.
-  fs.mkdirSync(path.join(tmp, 'lib', 'Beelden'), { recursive: true });
-  fs.writeFileSync(path.join(tmp, 'lib', 'Beelden', 'van-voor-de-update.txt'), 'x');
+  fs.mkdirSync(path.join(tmp, 'lib'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'lib', 'van-voor-de-update.txt'), 'x'); // niet in Beelden: de starttest verwacht daar precies één beeld
   r = await launch({ COLLECTOR_SMOKE: '1' });
+  if (r.status !== 0) console.log((r.stdout + r.stderr).split('\n').filter(l => /SMOKE|Error/.test(l)).join('\n'));
   ok(r.status === 0 && /SMOKE OK/.test(r.stdout), 'de bijgewerkte app start en bewaart een beeld');
-  ok(fs.existsSync(path.join(tmp, 'lib', 'Beelden', 'van-voor-de-update.txt')), 'de bibliotheekmap is door de update niet aangeraakt');
+  ok(fs.existsSync(path.join(tmp, 'lib', 'van-voor-de-update.txt')), 'de bibliotheekmap is door de update niet aangeraakt');
 
   // 4. Is de app al de nieuwste, dan gebeurt er niets.
   r = await runApp({ COLLECTOR_FAKE_VERSION: '9.9.9' });
