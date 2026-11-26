@@ -21,6 +21,8 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await new Promise(r => web.listen(0, '127.0.0.1', r));
   const site = 'http://127.0.0.1:' + web.address().port;
   const envApp = { ...process.env, COLLECTOR_LIBRARY: library, COLLECTOR_USERDATA: ud, COLLECTOR_NEWS_URL: site + '/nieuws.json', COLLECTOR_UPDATE_FEED: site + '/releases' };
+  // Automatisch bijwerken uit: dan blijft de melding "is beschikbaar" staan, op elke computer hetzelfde.
+  fs.mkdirSync(ud, { recursive: true }); fs.writeFileSync(path.join(ud, 'config.json'), JSON.stringify({ autoUpdate: false }));
   const app = await _electron.launch({ executablePath: bin || require('electron'), args, env: envApp });
   const p = await app.firstWindow();
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
@@ -74,7 +76,8 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   const logText = fs.readFileSync(path.join(ud, 'collector.log'), 'utf8');
   ok(/gestart/.test(logText) && /Toevoegen mislukt: ontwerp\.psd/.test(logText), 'logboek bevat de start en het mislukte bestand');
   // 6b. meldingen linksonder: update en nieuws, gestapeld en weg te klikken
-  await p.waitForFunction(() => document.querySelectorAll('#notes .note').length === 3, null, { timeout: 15000 });
+  // het nieuws en de updatecontrole komen los van elkaar binnen: wacht tot de update bovenop ligt
+  await p.waitForFunction(() => { const f = document.querySelector('#notes .note.front strong'); return f && /9\.9\.9/.test(f.textContent) && document.querySelectorAll('#notes .note').length === 3; }, null, { timeout: 20000 });
   const front = () => p.textContent('#notes .note.front strong');
   ok(/9\.9\.9/.test(await front()) && /1 van 4/.test(await p.textContent('#notes .note.front .note-kind')), 'meldingen: bovenop de update ("' + await front() + '"), 4 in totaal, 3 gestapeld zichtbaar');
   await p.screenshot({ path: path.join(os.tmpdir(), 'collector-meldingen.png') });
