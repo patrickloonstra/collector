@@ -57,6 +57,7 @@ class Library {
     for (const s of STORES) if (!d[s] || typeof d[s] !== 'object' || Array.isArray(d[s])) d[s] = {};
     if (!d.meta || typeof d.meta !== 'object') d.meta = {};
     if (!d.files || typeof d.files !== 'object') d.files = {}; // item-id -> bestandsnaam in Beelden/
+    if (!d.pending || typeof d.pending !== 'object') d.pending = {}; // bestandsnaam -> bron en titel, tot de interface het beeld heeft opgenomen
     this.cache = path.join(this.cacheRoot, d.id);
     await fsp.mkdir(path.join(this.cache, 'thumbs'), { recursive: true });
     await fsp.mkdir(path.join(this.cache, 'embs'), { recursive: true });
@@ -125,6 +126,7 @@ class Library {
   async putBlob(kind, id, buf, type, name) {
     if (kind === 'fulls') return this.putFull(id, buf, type, name);
     const p = await this.blobPath(kind, id); if (!p) throw new Error('ongeldig');
+    await fsp.mkdir(path.dirname(p), { recursive: true });
     await fsp.writeFile(p, buf);
   }
   /** Verwijderen = naar de map Prullenbak. Er wordt nooit iets definitief gewist. */
@@ -139,8 +141,27 @@ class Library {
   }
   async embeddings() {
     const dir = path.join(this.cache, 'embs'), out = {};
+    await fsp.mkdir(dir, { recursive: true }); // de cache mag altijd verdwenen zijn
     for (const f of await fsp.readdir(dir)) if (f.endsWith('.f32')) out[f.slice(0, -4)] = (await fsp.readFile(path.join(dir, f))).toString('base64');
     return out;
+  }
+  /** Een beeld dat van buiten komt (browserextensie): bestand bewaren en bron en titel klaarzetten voor de interface. */
+  async capture(buf, type, { title, source }) {
+    const ext = IMAGE_EXT[type]; if (!ext) throw new Error('geen beeld');
+    const stem = safeName(title).replace(/\.[a-z0-9]{2,5}$/i, '').slice(0, 80) || 'Bewaard beeld';
+    const name = await this.uniqueName(stem + '.' + ext);
+    await fsp.writeFile(path.join(this.images, name), buf);
+    this.data.pending[name] = { title: String(title || '').slice(0, 200), source: String(source || '').slice(0, 2000) };
+    this.save();
+    return name;
+  }
+  /** Een link van buiten: staat meteen als item in de bibliotheek. */
+  addLink(url, title) {
+    const lib = Object.values(this.data.libs)[0]; if (!lib) throw new Error('nog geen bibliotheek');
+    let host = ''; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { /* leeg */ }
+    const id = Date.now().toString(36) + crypto.randomBytes(3).toString('hex');
+    this.data.items[id] = { id, lib: lib.id, type: 'link', url, remote: '', title: String(title || '').slice(0, 200), note: '', source: url, cols: [], tags: [], auto: ['link', host].filter(Boolean), palette: [], created: Date.now() };
+    this.save(); return id;
   }
   /** Bestanden die je zelf in Beelden/ hebt gezet (via Finder) en die Collector nog niet kent. */
   async unindexed() {
@@ -149,7 +170,7 @@ class Library {
     for (const e of await fsp.readdir(this.images, { withFileTypes: true })) {
       if (!e.isFile() || e.name.startsWith('.') || known.has(e.name)) continue;
       const ext = path.extname(e.name).slice(1).toLowerCase();
-      if (EXT_MIME[ext]) out.push({ name: e.name, type: EXT_MIME[ext] });
+      if (EXT_MIME[ext]) out.push({ name: e.name, type: EXT_MIME[ext], ...(this.data.pending[e.name] || {}) });
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -159,7 +180,7 @@ class Library {
     const clean = path.basename(String(name));
     if (clean !== name || Object.values(this.data.files).includes(clean)) throw new Error('ongeldig bestand');
     await fsp.access(path.join(this.images, clean));
-    this.data.files[id] = clean; this.save();
+    this.data.files[id] = clean; delete this.data.pending[clean]; this.save();
   }
   rawPath(name) { // alleen bestanden direct in Beelden/
     const clean = path.basename(String(name));

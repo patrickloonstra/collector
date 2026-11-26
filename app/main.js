@@ -23,7 +23,8 @@ async function pickFolder(title) {
 async function boot() {
   const cfg = readConfig();
   let library = process.env.COLLECTOR_LIBRARY || cfg.library || defaultLibrary();
-  const cache = path.join(app.getPath('userData'), 'cache');
+  // Niet 'cache' noemen: op een Mac is dat dezelfde map als de 'Cache' van de browsermotor, en die wordt leeggemaakt.
+  const cache = path.join(app.getPath('userData'), 'Collector-miniaturen');
   for (;;) {
     try {
       server = await start({ library, cache, port: SMOKE ? 0 : 4317, onInfo: () => ({ version: app.getVersion() }) });

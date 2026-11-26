@@ -1,4 +1,4 @@
-/* Collector-extensie: haalt het beeld op en geeft het door aan een open Collector-tab. */
+/* Collector-extensie: haalt het beeld op en bewaart het in de Mac-app als die draait, anders in een open Collector-tab. */
 const api = globalThis.browser || globalThis.chrome;
 const DEFAULT_BASE = 'https://dev.patrickloonstra.nl/collector/';
 const getBase = async () => ((await api.storage.local.get('base')).base || DEFAULT_BASE);
@@ -31,7 +31,22 @@ async function collectorTab() {
   }
   throw new Error('Collector reageert niet');
 }
+const APP = 'http://127.0.0.1:4317/';
+/** Draait de Mac-app? Dan bewaren we daar, rechtstreeks in je map. */
+async function appRunning() {
+  if ((await api.storage.local.get('base')).base) return false; // eigen adres ingesteld: dat gaat voor
+  try {
+    const c = new AbortController(), t = setTimeout(() => c.abort(), 700);
+    const r = await fetch(APP + 'api/info', { signal: c.signal }); clearTimeout(t);
+    return r.ok && (await r.json()).app === 'collector';
+  } catch (e) { return false; }
+}
 async function deliver(payload) {
+  if (await appRunning()) {
+    const r = await fetch(APP + 'api/capture', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Collector': '1' }, body: JSON.stringify(payload) });
+    if (!r.ok) throw new Error('bewaren mislukt');
+    return;
+  }
   const tab = await collectorTab();
   const r = await api.tabs.sendMessage(tab.id, { collectorAdd: payload });
   if (!r || !r.ok) throw new Error('bewaren mislukt');

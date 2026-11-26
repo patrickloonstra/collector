@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Collector",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Bewaar beelden en pagina's in je Collector: rechtsklik, Alt-klik of de knop in de werkbalk.",
   "icons": { "16": "icon-16.png", "48": "icon-48.png", "128": "icon-128.png" },
   "permissions": ["contextMenus", "storage", "scripting", "activeTab", "tabs"],

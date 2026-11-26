@@ -15,7 +15,7 @@ Collector/
 
 - **Zelf bestanden toevoegen kan via Finder:** zet ze in `Beelden/` en ze verschijnen in de app zodra je het venster weer activeert.
 - **Andere plek, bijvoorbeeld je NAS:** klik linksonder op "Andere map". Koppel de netwerkschijf eerst in Finder. Is hij een keer niet bereikbaar, dan vraagt de app bij het starten wat je wilt doen.
-- **Miniaturen en de zoekindex** staan niet in die map maar in `~/Library/Application Support/Collector/cache`. Die zijn afgeleid en worden vanzelf opnieuw opgebouwd.
+- **Miniaturen en de zoekindex** staan niet in die map maar in `~/Library/Application Support/Collector/Collector-miniaturen`. Die zijn afgeleid en worden vanzelf opnieuw opgebouwd.
 
 ## Installeren
 

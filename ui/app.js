@@ -1525,7 +1525,7 @@ async function adoptNew() {
     for (const f of list) {
       try {
         const blob = await (await fetch('api/raw/' + encodeURIComponent(f.name))).blob();
-        out.push(await addImage(blob, { adopt: f.name, name: f.name, title: f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ') }));
+        out.push(await addImage(blob, { adopt: f.name, name: f.name, source: f.source, title: f.title || f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ') }));
       } catch (e) { console.warn('Overslaan', f.name, e); }
     }
     if (out.length) { toast(out.length === 1 ? '1 nieuw beeld uit je map' : out.length + ' nieuwe beelden uit je map'); renderAll(); aiIndex(); }
@@ -1541,6 +1541,11 @@ function initLibraryInfo() {
       h('button', { type: 'button', class: 'btn-text', onclick: async () => { if (await app.chooseLibrary()) location.reload(); } }, 'Andere map')));
   draw();
   if (DB.info.version) $('#appver').textContent = 'Collector ' + DB.info.version;
+  const checkOutside = async () => {
+    try { const info = await (await DB.call('GET', 'info')).json(); if (info.rev !== DB.info.rev) return location.reload(); } catch (e) { /* motor even weg */ }
+    adoptNew();
+  };
+  try { new EventSource('api/events').onmessage = () => checkOutside(); } catch (e) { /* zonder live meldingen */ }
   addEventListener('focus', debounce(async () => {
     try { const info = await (await DB.call('GET', 'info')).json(); if (info.rev !== DB.info.rev) return location.reload(); } catch (e) { /* motor even weg */ }
     adoptNew();

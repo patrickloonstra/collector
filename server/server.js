@@ -37,6 +37,8 @@ async function start(opts) {
   let lib = await new Library(opts.library, opts.cache).open();
   const state = { get library() { return lib; } };
   let rev = 0;
+  const listeners = new Set();
+  const notify = what => { for (const r of listeners) r.write('data: ' + what + '\n\n'); };
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -45,6 +47,12 @@ async function start(opts) {
       // Alleen deze computer, en alleen onze eigen pagina mag de API gebruiken (geen andere websites).
       if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host || '')) throw fail(403, 'geweigerd');
       const origin = req.headers.origin;
+      if (url.pathname === '/api/capture' || url.pathname === '/api/info') {
+        // De browserextensie mag hier bewaren en kijken of de app draait; gewone websites niet.
+        if (origin && origin !== own && !/^(moz|chrome|safari-web)-extension:\/\//.test(origin)) throw fail(403, 'geweigerd');
+        if (req.method === 'POST' && req.headers['x-collector'] !== '1') throw fail(403, 'geweigerd');
+        return await api(req, res, url);
+      }
       if (url.pathname.startsWith('/api/')) {
         if (origin && origin !== own) throw fail(403, 'geweigerd');
         if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers['x-collector'] !== '1') throw fail(403, 'geweigerd');
@@ -98,6 +106,21 @@ async function start(opts) {
       }
       if (m === 'DELETE') { await lib.delBlob(a, b); return json(res, 200, { ok: true }); }
     }
+    if (what === 'capture' && m === 'POST') {
+      const d = JSON.parse((await readBody(req)).toString('utf8'));
+      const page = /^https?:\/\/\S+$/i.test(d.page || '') ? d.page : '';
+      const mm = typeof d.dataUrl === 'string' && /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/is.exec(d.dataUrl);
+      if (mm) await lib.capture(Buffer.from(mm[2], 'base64'), mm[1].toLowerCase(), { title: d.title, source: page });
+      else if (page) { lib.addLink(page, d.title); rev++; }
+      else throw fail(400, 'niets om te bewaren');
+      notify('changed');
+      return json(res, 200, { ok: true });
+    }
+    if (what === 'events' && m === 'GET') { // de interface luistert hier naar wijzigingen van buiten
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+      res.write(': ok\n\n'); listeners.add(res); req.on('close', () => listeners.delete(res));
+      return;
+    }
     if (what === 'embeddings' && m === 'GET') return json(res, 200, await lib.embeddings());
     if (what === 'unindexed' && m === 'GET') return json(res, 200, await lib.unindexed());
     if (what === 'raw' && a && m === 'GET') { const p = lib.rawPath(a); if (!p) throw fail(404, 'niet gevonden'); return sendFile(req, res, p, Library.mime(p)); }
@@ -111,7 +134,7 @@ async function start(opts) {
     port, url: `http://127.0.0.1:${port}/`, state,
     /** Wisselt naar een andere bibliotheekmap (bijvoorbeeld op een NAS). */
     async switchLibrary(dir) { const next = await new Library(dir, opts.cache).open(); await lib.flush(); lib = next; return lib.dir; },
-    async close() { await lib.flush(); await new Promise(r => server.close(r)); },
+    async close() { for (const r of listeners) r.end(); await lib.flush(); server.closeAllConnections && server.closeAllConnections(); await new Promise(r => server.close(r)); },
   };
 }
 
