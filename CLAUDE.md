@@ -52,6 +52,12 @@ Elke push bouwt en test de app via GitHub Actions op een Mac (Apple Silicon, bew
 
 De repo is openbaar, en dat moet zo blijven: de app leest de lijst met releases zonder in te loggen om zichzelf bij te werken. Zet dus nooit geheimen in deze repo. Er is geen Apple Developer-account: de app is alleen lokaal ("ad hoc") ondertekend (`build/adhoc-sign.js`), dus de gebruiker moet hem de eerste keer via Systeeminstellingen > Privacy en beveiliging openen. Automatisch bijwerken kan daardoor nog niet op de standaardmanier.
 
-## Het webprototype
+## De website
 
-Op `dev.patrickloonstra.nl/collector` (repo `patrickloonstra/dev`, map `collector/`) staat het prototype waar `ui/` uit is voortgekomen. De bron van de interface staat vanaf nu hier.
+De landingspagina met demo staat op `dev.patrickloonstra.nl/collector` (repo `patrickloonstra/dev`, map `collector/`). De bron staat hier in `site/`; op dev staat alleen het resultaat.
+
+- Bouwen: `python3 docs/maak-voorbeelden.py <map>` en dan `node site/bouw.js <doelmap> <map>`. Zet de inhoud van de doelmap in `collector/` van de dev-repo en push daar naar `main`.
+- De demo is de echte interface uit `ui/` met `data-demo` (eigen voorbeeldbeelden, geen AI-model).
+- "Wat is er nieuw" wordt gemaakt uit `WIJZIGINGEN.md`. Bouw en publiceer de website dus opnieuw na elke release.
+- `site/nieuws.json` is de lijst met meldingen die de app toont (aanbieding, nieuws). Leeg is `[]`.
+- Prijs: € 9 eenmalig, 7 dagen proberen. De app dwingt de proefperiode nog niet af.

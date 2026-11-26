@@ -1043,6 +1043,19 @@ function runSplash() {
   });
 }
 
+// ---------- Demo op de website: eigen voorbeeldbeelden laden ----------
+async function loadDemo() {
+  try {
+    const names = await (await fetch('voorbeelden/lijst.json')).json();
+    for (const name of names) {
+      const blob = await (await fetch('voorbeelden/' + encodeURIComponent(name))).blob();
+      await addImage(blob, { name, title: name.replace(/\.[a-z0-9]+$/i, '') });
+      if (state.items.length === WALL_MIN || state.items.length % 8 === 0) renderAll();
+    }
+    renderAll();
+  } catch (e) { console.warn('Demo laden mislukt', e); }
+}
+
 // ---------- Eerste keer: korte uitleg ----------
 function openOnboarding() {
   const app = window.collectorApp, box = $('#onboard'); let step = 0;
@@ -1811,6 +1824,7 @@ async function adoptNew() {
   } catch (e) { console.warn(e); }
   finally { adopting = false; }
 }
+const DEMO = document.documentElement.dataset.demo !== undefined; // de demo op de website: voorbeeldbeelden, geen AI-model
 const SHOP = 'https://dev.patrickloonstra.nl/collector/#kopen';
 const EXT_URL = 'https://github.com/patrickloonstra/collector/releases/latest/download/Collector-extensie.zip';
 let updState = null, settingsDraw = null;
@@ -1851,7 +1865,7 @@ function openSettings() {
       btn('Kies andere map…', async () => { if (await app.chooseLibrary()) location.reload(); }),
       info.defaultLibrary && info.library !== info.defaultLibrary && btn('Terug naar standaardmap', async () => { if (await app.resetLibrary()) location.reload(); }))));
   const n = libItems().filter(i => AI.embs.has(i.id)).length;
-  body.append(row('Zoeken op beeldinhoud',
+  if (!DEMO) body.append(row('Zoeken op beeldinhoud',
     h('p', { class: 'set-help', text: AI.on ? 'Staat aan. ' + n + (n === 1 ? ' beeld' : ' beelden') + ' doorzoekbaar op wat erop te zien is.' : 'Staat uit. Zet je het aan, dan haalt Collector eenmalig een beeldmodel op (ongeveer 155 MB). Het draait op je eigen computer; je beelden worden nergens heen gestuurd.' }),
     h('div', { class: 'set-actions' }, btn(AI.on ? 'Uitzetten' : 'Aanzetten', () => { close(); AI.on ? aiDisable() : aiAsk(); }))));
   body.append(row('Back-up',
@@ -2084,6 +2098,7 @@ async function start() {
   if (!first) adoptNew();
   await handleCapture();
   splash.then(() => { if (first) openOnboarding(); });
+  if (DEMO && !state.items.length) loadDemo();
   if (meta.ai) aiEnable();
 }
 start();
