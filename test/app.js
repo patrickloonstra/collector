@@ -66,7 +66,8 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await app.evaluate(({ Menu }) => { const m = Menu.getApplicationMenu(); const find = items => { for (const i of items) { if (i.label === 'Instellingen…') return i; if (i.submenu) { const r = find(i.submenu.items); if (r) return r; } } }; find(m.items).click(); });
   await p.waitForSelector('.settings .set-path');
   ok((await p.textContent('.set-path')) === library, 'menu Instellingen opent het venster met de bibliotheekmap');
-  ok(await p.$$eval('.set-actions .btn', e => ['Toon in Finder', 'Kies andere map…', 'Zoek naar updates', 'Toon logboek'].every(t => e.some(b => b.textContent === t))), 'knoppen: Finder, andere map, updates, logboek');
+  // De updateknop heet anders als er al een nieuwe versie gevonden is (dat hangt af van de computer en het moment).
+  ok(await p.$$eval('.set-actions .btn', e => ['Toon in Finder', 'Kies andere map…', 'Toon logboek'].every(t => e.some(b => b.textContent === t)) && e.some(b => ['Zoek naar updates', 'Downloaden en installeren', 'Herstart en werk bij'].includes(b.textContent))), 'knoppen: Finder, andere map, updates, logboek');
   ok(/Patrick Loonstra/.test(await p.textContent('.about')) && await p.$$eval('.set-actions a', e => e.some(x => x.textContent === 'Collector kopen')), 'instellingen: wie het maakt en waar je hem koopt');
   await p.screenshot({ path: path.join(os.tmpdir(), 'collector-instellingen.png') });
   await p.click('#dlg >> text=Sluiten');
