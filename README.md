@@ -1,29 +1,34 @@
-# Collector
+<p align="center"><img src="docs/kop.png" alt="Collector. Verzamel, orden en vind je beeldreferenties terug." width="100%"></p>
 
-Een Mac-app om beeldreferenties te verzamelen, te ordenen en terug te vinden. Je bestanden blijven gewone bestanden in een map die jij kiest.
+Collector is een Mac-app voor ontwerpers die veel beeld bewaren: screenshots, posters, kleurstudies, typografie, alles wat je ooit nog eens terug wilt zien. Je begint niet in een lijst maar in een wand van je eigen beelden die zacht drijft, zodat je weer tegenkomt wat je vergeten was.
 
-## Waar staat alles?
+Twee dingen staan voorop:
 
-Standaard in `~/Pictures/Collector` (Afbeeldingen > Collector). Die map is gewoon zichtbaar in Finder en gaat mee in je back-up.
+- **Je bestanden blijven van jou.** Alles staat als gewone bestanden in een map die jij kiest, op je Mac of op een netwerkschijf. Geen account, geen cloud.
+- **Verzamelen moet licht voelen.** Eén toets om iets te bewaren, één toets om iets te waarderen, en ordenen doe je pas als je er zin in hebt.
 
-```
-Collector/
-  Beelden/         je bestanden, met hun eigen naam
-  Prullenbak/      wat je verwijdert; er wordt nooit iets definitief gewist
-  collector.json   titels, tags, collecties, notities en links
-```
+<p align="center"><img src="docs/collector.gif" alt="De ontdekwand van Collector: beelden drijven voorbij, een beeld krijgt een hartje en drie beelden vliegen naar de waaier linksonder." width="840"></p>
 
-- **Zelf bestanden toevoegen kan via Finder:** zet ze in `Beelden/` en ze verschijnen in de app zodra je het venster weer activeert.
-- **Andere plek, bijvoorbeeld je NAS:** klik linksonder op "Andere map". Koppel de netwerkschijf eerst in Finder. Is hij een keer niet bereikbaar, dan vraagt de app bij het starten wat je wilt doen.
-- **Miniaturen en de zoekindex** staan niet in die map maar in `~/Library/Application Support/Collector/Collector-miniaturen`. Die zijn afgeleid en worden vanzelf opnieuw opgebouwd.
+## Wat je ermee doet
+
+| | |
+|---|---|
+| **Ontdekken** | De app opent in een eindeloze wand. Sleep om te bewegen, zoom met ⌘ + scrollen. Onderin wissel je naar een raster of naar je collecties. |
+| **Verzamelen** | Beweeg over een beeld en druk op C. Het vliegt naar een waaier linksonder. Daar maak je er een collectie van, of je legt de beelden op een vrij canvas. |
+| **Waarderen** | L zet een hartje. Je favorieten staan apart in de zijbalk. |
+| **Terugvinden** | Zoek op titel, tag, notitie of bron. Elk beeld krijgt vanzelf tags voor kleur en vorm. Met ⌘K zoek je ook op kleur. |
+| **Bewaren vanaf het web** | Met de browserextensie: rechtsklik op een beeld, of houd ⌥ ingedrukt en klik. De pagina wordt als bron bewaard. |
+| **Samenwerken met AI** | Claude, Cursor en andere agents kunnen via MCP in je bibliotheek zoeken, op je eigen Mac. |
 
 ## Installeren
 
-1. Ga naar [Releases](../../releases) en download het nieuwste `.dmg`. De app is er alleen voor Macs met een Apple-chip (M1 en nieuwer).
+Voor Macs met een Apple-chip (M1 en nieuwer).
+
+1. Download het nieuwste `.dmg` onder [Releases](../../releases/latest).
 2. Open het bestand en sleep Collector naar Programma's.
 3. De app is niet door Apple ondertekend. De eerste keer weigert macOS hem te openen. Ga naar Systeeminstellingen > Privacy en beveiliging, scrol naar beneden en klik "Open toch". Daarna start hij gewoon.
 
-Daarna werkt Collector zichzelf bij: hij kijkt bij elke start of er een nieuwere versie is, downloadt die en installeert hem als je de app afsluit. Dat werkt alleen als deze repo openbaar is en de app in Programma's staat. Je bibliotheekmap wordt bij een update niet aangeraakt.
+Daarna werkt Collector zichzelf bij. Hij kijkt bij elke start of er een nieuwere versie is, downloadt die en installeert hem als je de app afsluit. De app moet daarvoor in Programma's staan. Je bibliotheek wordt bij een update niet aangeraakt.
 
 ## Sneltoetsen
 
@@ -39,9 +44,24 @@ Daarna werkt Collector zichzelf bij: hij kijkt bij elke start of er een nieuwere
 | R | Herontdek een willekeurig beeld |
 | ⌘, | Instellingen |
 
+## Waar staat alles?
+
+Standaard in `~/Pictures/Collector` (Afbeeldingen > Collector). Die map is gewoon zichtbaar in Finder en gaat mee in je back-up.
+
+```
+Collector/
+  Beelden/         je bestanden, met hun eigen naam
+  Prullenbak/      wat je verwijdert; er wordt nooit iets definitief gewist
+  collector.json   titels, tags, collecties, notities en links
+```
+
+- **Zelf bestanden toevoegen kan via Finder:** zet ze in `Beelden/` en ze verschijnen in de app zodra je het venster weer activeert.
+- **Andere plek, bijvoorbeeld een netwerkschijf:** Collector > Instellingen > "Kies andere map…". Koppel de schijf eerst in Finder. Is hij een keer niet bereikbaar, dan vraagt de app bij het starten wat je wilt doen.
+- **Miniaturen en de zoekindex** staan niet in die map maar in `~/Library/Application Support/Collector/Collector-miniaturen`. Die zijn afgeleid en worden vanzelf opnieuw opgebouwd.
+
 ## Bewaren vanuit je browser
 
-Bij elke release zit `Collector-extensie.zip`. Daarmee bewaar je een beeld zonder de pagina te verlaten: rechtsklik op het beeld en kies "Bewaar beeld in Collector", of houd Alt (⌥) ingedrukt en klik erop. Staat de app open, dan landt het beeld rechtstreeks in je bibliotheekmap, met de pagina als bron.
+Bij elke release zit `Collector-extensie.zip`. Staat de app open, dan landt een beeld rechtstreeks in je bibliotheekmap.
 
 - **Zen en Firefox:** pak het zip-bestand uit, open `about:debugging`, kies "Deze Firefox" (in Zen: "Deze Zen"), klik "Tijdelijke add-on laden" en kies `manifest.json`. Dit verdwijnt na een herstart van de browser; voor blijvend gebruik moet Mozilla de extensie ondertekenen.
 - **Chrome, Arc, Brave, Edge:** pak het zip-bestand uit, open `chrome://extensions`, zet "Ontwikkelaarsmodus" aan, klik "Uitgepakte extensie laden" en kies de map.
@@ -72,7 +92,7 @@ Voor Cursor (`~/.cursor/mcp.json`):
 
 Standaard kan een agent alleen lezen (`search_library`, `list_collections`, `get_item`). Zet `COLLECTOR_MCP_WRITE` op `1` in `env` om ook tags, notities en links te laten toevoegen. Verwijderen kan een agent nooit.
 
-## Ontwikkelen
+## Voor wie meebouwt
 
 ```bash
 npm install
@@ -82,29 +102,16 @@ npm install
 npm start
 ```
 
-Zonder app-venster, in je browser:
-
-```bash
-npm run serve
-```
-
-Testen (vereist Playwright en een map met een paar JPG- of PNG-bestanden):
-
-```bash
-node test/run.js /pad/naar/testbeelden
-```
-
-```bash
-node test/mcp.js
-```
-
-## Opbouw
-
 | Map | Wat |
 |---|---|
-| `ui/` | De interface (gewone HTML, CSS en JavaScript, geen bouwstap). Draait ook los in een browser met opslag in IndexedDB |
-| `server/` | De motor: leest en schrijft de bibliotheekmap en levert de interface, alleen bereikbaar vanaf deze computer |
-| `app/` | De Electron-schil: venster, mapkeuze, standaardmap |
+| `ui/` | De interface: gewone HTML, CSS en JavaScript, zonder bouwstap |
+| `server/` | De motor: leest en schrijft de bibliotheekmap, alleen bereikbaar vanaf deze computer |
+| `app/` | De Electron-schil: venster, instellingen, bijwerken |
 | `mcp/` | MCP-server voor agents |
-| `extension/` | Browserextensie (rechtsklik, Alt-klik, werkbalkknop). Bewaart in de app als die open staat, anders in de webversie |
-| `.github/workflows/build.yml` | Bouwt bij elke push de app op een Mac, test hem daar en zet het `.dmg` klaar onder Releases |
+| `extension/` | Browserextensie |
+| `test/` | Tests voor motor, interface, app, extensie, MCP en bijwerken |
+| `docs/` | Beelden voor deze pagina en de scripts die ze maken |
+
+Elke wijziging wordt door GitHub op een echte Mac gebouwd en getest. Wat er per versie veranderde staat in [WIJZIGINGEN.md](WIJZIGINGEN.md). Hoe het project in elkaar zit en welke afspraken gelden staat in [CLAUDE.md](CLAUDE.md).
+
+<p align="center"><sub>De voorbeeldbeelden op deze pagina zijn voor dit doel gemaakt.</sub></p>

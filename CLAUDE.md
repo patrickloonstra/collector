@@ -28,6 +28,12 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 - Geen kleurbolletjes in de zijbalk; zoeken op kleur zit in het snelmenu.
 - Beweging hoort erbij, maar respecteer `prefers-reduced-motion` (`calm`).
 
+## Beeldmerk en README
+
+- Icoon: een handgeschreven C in heel donkergroen (`#062b1e`) op wit, `build/icon.svg`. Krabbelpatroon in dezelfde kleur: `build/krabbels.js`.
+- `node build/dmg-background.js` tekent de achtergrond van het installatievenster opnieuw.
+- `python3 docs/maak-voorbeelden.py <map>` en daarna `node docs/maak-media.js <map>` maken de kop en de bewegende schermopname voor de README opnieuw. Doe dat na een zichtbare wijziging aan de vorm. Gebruik in de openbare repo alleen eigen voorbeeldbeelden, nooit werk van anderen.
+
 ## Valkuilen die al eens misgingen
 
 - **Noem een map in `userData` nooit `cache`.** macOS maakt geen verschil tussen hoofd- en kleine letters, en Chromium beheert zelf `Cache` en maakt die leeg. Onze map heet daarom `Collector-miniaturen`.

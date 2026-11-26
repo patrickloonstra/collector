@@ -2,6 +2,10 @@
 
 Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelichting bij de release.
 
+## 0.1.3
+
+- Het installatievenster heeft een eigen achtergrond: een patroon van handgetekende krabbels in het donkergroen van het icoon, met een getekende pijl naar Programma's.
+
 ## 0.1.2
 
 - De balk onderin maakt plaats zolang de waaier met verzamelde beelden open is, zodat ze niet meer over elkaar schuiven.

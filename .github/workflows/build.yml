@@ -40,6 +40,13 @@ jobs:
       - name: Test het bijwerken op de Mac (oude versie werkt zichzelf bij naar een nieuwe)
         timeout-minutes: 6
         run: node test/update-mac.js dist/mac-arm64/Collector.app
+      - name: Controleer het installatievenster (achtergrond en snelkoppeling naar Programma's)
+        run: |
+          V=$(node -p "require('./package.json').version")
+          hdiutil attach "dist/Collector-$V.dmg" -nobrowse -readonly -mountpoint /tmp/collector-dmg
+          ls -la /tmp/collector-dmg /tmp/collector-dmg/.background
+          test -d /tmp/collector-dmg/Collector.app && test -L /tmp/collector-dmg/Applications && ls /tmp/collector-dmg/.background | grep -q .
+          hdiutil detach /tmp/collector-dmg
       - name: Pak de browserextensie in
         run: cd extension && zip -q -r ../dist/Collector-extensie.zip .
       - uses: actions/upload-artifact@v4

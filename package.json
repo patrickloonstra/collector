@@ -1,7 +1,7 @@
 {
   "name": "collector",
   "productName": "Collector",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Verzamel, orden en vind beeldreferenties terug. Je bestanden blijven gewone bestanden in je eigen map.",
   "private": true,
   "main": "app/main.js",
@@ -53,7 +53,26 @@
       "artifactName": "Collector-${version}.${ext}"
     },
     "dmg": {
-      "sign": false
+      "sign": false,
+      "background": "build/dmg-background.png",
+      "iconSize": 96,
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 140,
+          "y": 210
+        },
+        {
+          "x": 400,
+          "y": 210,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "title": "Collector ${version}"
     }
   }
 }
