@@ -18,7 +18,6 @@ Twee dingen staan voorop:
 | **Waarderen** | L zet een hartje. Je favorieten staan apart in de zijbalk. |
 | **Terugvinden** | Zoek op titel, tag, notitie of bron. Elk beeld krijgt vanzelf tags voor kleur en vorm. Met ⌘K zoek je ook op kleur. |
 | **Bewaren vanaf het web** | Met de browserextensie: rechtsklik op een beeld, of houd ⌥ ingedrukt en klik. De pagina wordt als bron bewaard. |
-| **Samenwerken met AI** | Claude, Cursor en andere agents kunnen via MCP in je bibliotheek zoeken, op je eigen Mac. |
 
 ## Installeren
 
@@ -67,34 +66,6 @@ Bij elke release zit `Collector-extensie.zip`. Staat de app open, dan landt een 
 - **Zen en Firefox:** pak het zip-bestand uit, open `about:debugging`, kies "Deze Firefox" (in Zen: "Deze Zen"), klik "Tijdelijke add-on laden" en kies `manifest.json`. Dit verdwijnt na een herstart van de browser; voor blijvend gebruik moet Mozilla de extensie ondertekenen.
 - **Chrome, Arc, Brave, Edge:** pak het zip-bestand uit, open `chrome://extensions`, zet "Ontwikkelaarsmodus" aan, klik "Uitgepakte extensie laden" en kies de map.
 
-## Agents (MCP)
-
-Claude, Cursor en andere agents kunnen in je bibliotheek zoeken zolang de app open staat. Er gaat niets naar buiten; de koppeling praat met de app op je eigen Mac.
-
-Voor Claude Code:
-
-```bash
-claude mcp add collector --env ELECTRON_RUN_AS_NODE=1 -- /Applications/Collector.app/Contents/MacOS/Collector /Applications/Collector.app/Contents/Resources/app.asar/mcp/server.js
-```
-
-Voor Cursor (`~/.cursor/mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "collector": {
-      "command": "/Applications/Collector.app/Contents/MacOS/Collector",
-      "args": ["/Applications/Collector.app/Contents/Resources/app.asar/mcp/server.js"],
-      "env": { "ELECTRON_RUN_AS_NODE": "1" }
-    }
-  }
-}
-```
-
-De koppeling staat standaard uit. Zet hem aan in de app: Instellingen > AI-assistent. Daar staat ook de kant-en-klare regel om te kopiëren en kies je of de assistent mag ordenen.
-
-Alleen kijken: `search_library`, `list_collections`, `get_item`, `view_items`. Met ordenen aan ook: `add_tags`, `remove_tags`, `set_details`, `add_to_collection`, `remove_from_collection`, `add_note` en `add_link`. Verwijderen kan een agent nooit, en zijn eigen rechten aanpassen ook niet.
-
 ## Voor wie meebouwt
 
 ```bash
@@ -110,7 +81,7 @@ npm start
 | `ui/` | De interface: gewone HTML, CSS en JavaScript, zonder bouwstap |
 | `server/` | De motor: leest en schrijft de bibliotheekmap, alleen bereikbaar vanaf deze computer |
 | `app/` | De Electron-schil: venster, instellingen, bijwerken |
-| `mcp/` | MCP-server voor agents |
+| `mcp/` | Koppeling voor AI-assistenten (nog niet aangekondigd, zie `mcp/README.md`) |
 | `extension/` | Browserextensie |
 | `test/` | Tests voor motor, interface, app, extensie, MCP en bijwerken |
 | `docs/` | Beelden voor deze pagina en de scripts die ze maken |

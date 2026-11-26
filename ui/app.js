@@ -958,6 +958,8 @@ function bookmarkletHref() {
   const code = "(()=>{const s=[...document.images].filter(i=>i.naturalWidth>=300&&i.naturalHeight>=200).map(i=>({u:(i.currentSrc||i.src).replace(/([?&]name=)\\w+/,'$1large'),a:i.naturalWidth*i.naturalHeight})).filter(x=>/^https?:/.test(x.u)).sort((a,b)=>b.a-a.a).map(x=>x.u);const p=new URLSearchParams();p.set('src',location.href);p.set('title',document.title);[...new Set(s)].slice(0,12).forEach(x=>p.append('add',x));window.open(" + JSON.stringify(base) + "+'?'+p,'_blank')})()";
   return 'javascript:' + encodeURIComponent(code);
 }
+/** De koppeling met een AI-assistent is nog niet openbaar: de instelling verschijnt pas na "mcp" in het snelmenu, of als ze al aan staat. */
+let assistantShown = false;
 /** Wat de assistent nodig heeft om Collector te vinden: het programma, het script en de omgeving. */
 function assistantConfig() {
   const m = (DB.info || {}).mcp || {}, env = { ELECTRON_RUN_AS_NODE: '1', ...(location.port && location.port !== '4317' ? { COLLECTOR_URL: location.origin + '/' } : {}) };
@@ -1859,6 +1861,7 @@ function kmItems(q) {
   for (const c of libCols()) add(c.name, 'Collectie', () => setView(colView(c)));
   for (const c of ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc1', '#1e88e5', '#8e24aa', '#ec407a', '#795548', '#111111', '#9e9e9e', '#ffffff']) add('Kleur: ' + colorName(rgbOf(c)), 'Zoek op kleur', () => setColor(c));
   add('Volledig scherm', 'Actie · F', toggleFullscreen);
+  if (q === 'mcp' && DB.http) out.unshift({ label: 'AI-assistent instellen', hint: 'Nog niet openbaar', run: () => { assistantShown = true; openSettings(); } });
   if (isGreeting(q)) out.unshift({ label: '…', hint: '', run: greetBack });
   if (q) {
     for (const [t] of tagCounts()) if (t.includes(q)) out.push({ label: '#' + t, hint: 'Tag', run: () => setView({ kind: 'tag', tag: t }) });
@@ -2274,7 +2277,7 @@ function openSettings() {
   if (window.collectorApp) body.append(row('Nieuws',
     all.length ? h('ul', { class: 'newslist' }, all.map(n => h('li', null, h('strong', { text: n.title }), h('p', { text: n.text }), n.link && h('a', { class: 'btn-text', href: n.link, target: '_blank', rel: 'noopener' }, n.label)))) : h('p', { class: 'set-help', style: { margin: 0 }, text: 'Geen nieuws op dit moment.' }),
     h('div', { class: 'set-actions' }, h('a', { class: 'btn small', href: CHANGES, target: '_blank', rel: 'noopener', style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', marginLeft: 0 } }, 'Alle wijzigingen bekijken'))));
-  if (DB.http && info.mcp) {
+  if (DB.http && info.mcp && assistantShown) {
     const on = h('input', { type: 'checkbox', id: 'setMcpOn' }), may = h('input', { type: 'checkbox', id: 'setMcpWrite' }), more = h('div', { class: 'set-actions' });
     const put = async () => { await DB.put('meta', { on: on.checked, write: on.checked && may.checked }, 'mcp'); show(); };
     const show = () => { may.disabled = !on.checked; if (!on.checked) may.checked = false; more.hidden = !on.checked; };
@@ -2480,6 +2483,7 @@ async function start() {
     return;
   }
   [state.libs, state.items, state.spaces, state.cols] = await Promise.all([DB.all('libs'), DB.all('items'), DB.all('spaces'), DB.all('cols')]);
+  if (DB.http) DB.get('meta', 'mcp').then(v => { if (v && v.on) assistantShown = true; }, () => {});
   state.items.sort((a, b) => b.created - a.created);
   if (!state.libs.length) { const l = { id: uid(), name: 'Mijn bibliotheek', created: Date.now() }; await DB.put('libs', l); state.libs.push(l); }
   const meta = await DB.get('meta', 'settings') || {};

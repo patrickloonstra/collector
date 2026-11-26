@@ -2,17 +2,17 @@
 
 Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelichting bij de release.
 
+## 0.1.10
+
+- Kleine verbeteringen onder de motorkap.
+
 ## 0.1.9
 
-- **Je assistent zet je aan in Instellingen:** onder AI-assistent kies je of Claude of Cursor in je bibliotheek mag kijken, en apart of hij mag ordenen. Het staat standaard uit. Had je de koppeling al aangesloten, zet hem hier dan aan.
-- Achter "Zo sluit je hem aan" staan de stappen per programma, met een knop om de instelling te kopiëren, en voorbeelden van wat je kunt vragen.
 - De vinkjes in Instellingen staan weer naast hun tekst.
 
 ## 0.1.8
 
 - **Een collectie delen:** open een collectie en kies Delen. Je krijgt een polaroid voor social (1080 × 1350), een verhaal (1080 × 1920) of een PDF op A4 met de bron per beeld. Onderin staat de naam van de collectie, in de hoek het aantal beelden, de datum, de hoofdkleuren en een kleine C.
-- **Je eigen AI-assistent kan ordenen:** Collector stuurt je beelden zelf nergens heen. Claude of Cursor kan via MCP wel in je bibliotheek kijken en, als je dat aanzet, tags, titels en collecties voor je bijhouden. Weggooien kan een assistent nooit.
-- De koppeling voor je assistent staat nu in Instellingen > AI-assistent, met een knop om hem te kopiëren.
 
 ## 0.1.7
 
@@ -64,4 +64,4 @@ Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelic
 
 ## 0.1.0
 
-- Eerste versie van de Mac-app: bibliotheek als gewone map, instellingenvenster, logboek, MCP en browserextensie.
+- Eerste versie van de Mac-app: bibliotheek als gewone map, instellingenvenster, logboek en browserextensie.
