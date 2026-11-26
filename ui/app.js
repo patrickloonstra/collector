@@ -642,6 +642,7 @@ function renderGrid() {
   if (state.color && !overview) f.append(h('span', { class: 'chip' }, h('i', { style: { background: state.color } }), 'Kleur ' + state.color, h('button', { type: 'button', 'aria-label': 'Kleurfilter wissen', onclick: () => setColor(null) }, '×')));
   if (state.q && !overview) f.append(h('span', { class: 'chip' }, '"' + state.q + '"', h('button', { type: 'button', 'aria-label': 'Zoekterm wissen', onclick: () => { state.q = ''; $('#q').value = ''; renderGrid(); } }, '×')));
   const act = (label, run, cls) => f.append(h('button', { type: 'button', class: 'btn small ' + (cls || ''), onclick: run }, label));
+  if (col) act('Delen', () => openShare(col));
   if (col) act('Meer', e => openMenu(e.currentTarget, [
     { label: 'Naam wijzigen', run: async () => { const name = await dialog({ title: 'Naam wijzigen', value: col.name }); if (name) { col.name = name; await DB.put('cols', col); renderAll(); } } },
     { label: 'Collectie verwijderen', danger: true, run: () => deleteCol(col) }]));
@@ -1504,6 +1505,7 @@ function initSpaceEvents() {
   $('#spPng').onclick = exportSpace;
   $('#spMore').onclick = e => openMenu(e.currentTarget, [
     { label: 'Naam wijzigen', run: async () => { const name = await dialog({ title: 'Naam wijzigen', value: sp.space.name }); if (name) { sp.space.name = name; await DB.put('cols', sp.space); renderAll(); } } },
+    { label: 'Delen als polaroid of PDF', run: () => openShare(sp.space) },
     { label: 'Selectie uit collectie halen', run: deleteSelectedNodes },
     { label: 'Collectie verwijderen', danger: true, run: () => deleteCol(sp.space) },
   ]);
@@ -1640,6 +1642,157 @@ async function toggleLike(id) {
   const hb = document.querySelector('.detail-panel .like[data-id="' + id + '"]'); if (hb) { hb.classList.toggle('on', it.liked); hb.setAttribute('aria-pressed', it.liked ? 'true' : 'false'); }
   if (state.view.kind === 'liked' && detailId == null) renderGrid();
   renderSide();
+}
+
+// ---------- Delen: een collectie als polaroid (beeld voor social) of als PDF ----------
+const SHARE_INK = '#062b1e', SHARE_CARD = '#fffdf9', SHARE_BACK = '#efe8dc';
+const C_MARK = 'M706 352 C716 318 694 286 660 272 C610 250 548 248 486 264 C352 300 264 420 274 556 C284 692 392 782 528 780 C630 778 716 728 766 648 C778 628 752 606 734 624 C688 680 626 712 552 712 C452 712 380 644 372 546 C364 440 420 352 508 332 C558 320 600 334 626 366 C644 390 672 402 692 390 C702 384 704 366 706 352 Z';
+const loadImg = src => new Promise(res => { if (!src) return res(null); const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+const shareSerif = px => '400 ' + px + 'px ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif';
+const shareSans = px => '400 ' + px + 'px ' + getComputedStyle(document.body).fontFamily;
+const shareItems = col => colItems(col.id).filter(i => i.type === 'image');
+const shareMeta = n => (n === 1 ? '1 beeld' : n + ' beelden') + ' · ' + new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
+/** De vijf kleuren die in de collectie het meest voorkomen. */
+function sharePalette(items) {
+  const sum = new Map();
+  for (const it of items) for (const p of (it.palette || []).slice(0, 4)) sum.set(p.hex, (sum.get(p.hex) || 0) + (p.pct || 1));
+  const out = [];
+  for (const [hex] of [...sum].sort((a, b) => b[1] - a[1])) {
+    const [r, g, b] = rgbOf(hex);
+    if (out.every(o => { const [x, y, z] = rgbOf(o); return Math.abs(x - r) + Math.abs(y - g) + Math.abs(z - b) > 90; })) out.push(hex);
+    if (out.length === 5) break;
+  }
+  return out;
+}
+function drawMark(ctx, x, y, size) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(size / 560, size / 560);
+  ctx.rotate(-10 * Math.PI / 180); ctx.translate(-518, -516);
+  ctx.fillStyle = SHARE_INK; ctx.fill(new Path2D(C_MARK)); ctx.restore();
+}
+function drawFit(ctx, im, x, y, w, h, cover) {
+  const s = (cover ? Math.max : Math.min)(w / im.naturalWidth, h / im.naturalHeight), dw = im.naturalWidth * s, dh = im.naturalHeight * s;
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.drawImage(im, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); ctx.restore();
+  return { x: x + Math.max(0, (w - dw) / 2), y: y + Math.max(0, (h - dh) / 2), w: Math.min(w, dw), h: Math.min(h, dh) };
+}
+function fitText(ctx, t, max) {
+  if (ctx.measureText(t).width <= max) return t;
+  while (t.length > 1 && ctx.measureText(t + '…').width > max) t = t.slice(0, -1);
+  return t.trimEnd() + '…';
+}
+/** De strook met naam links en de gegevens klein in de hoek rechts. */
+function drawStrip(ctx, col, items, x, y, w, h) {
+  const u = w / 950, pal = sharePalette(items);
+  ctx.fillStyle = SHARE_INK; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.font = shareSerif(62 * u); ctx.fillText(fitText(ctx, col.name, w - 300 * u), x, y + h * 0.56);
+  ctx.textAlign = 'right'; ctx.globalAlpha = 0.62; ctx.font = shareSans(21 * u);
+  ctx.fillText(shareMeta(items.length), x + w - 72 * u, y + h * 0.56);
+  ctx.globalAlpha = 1;
+  pal.forEach((hex, i) => { ctx.fillStyle = hex; ctx.fillRect(x + w - 72 * u - (pal.length - i) * 30 * u + 4 * u, y + h * 0.56 - 46 * u, 26 * u, 8 * u); });
+  drawMark(ctx, x + w - 22 * u, y + h * 0.56 - 16 * u, 44 * u);
+}
+/** Tekent de polaroid: een kaart met de beelden in een raster en een brede strook onder. */
+async function drawPolaroid(col, W, H) {
+  const items = shareItems(col), n = items.length;
+  const [cols, rows] = n >= 9 ? [3, 3] : n >= 6 ? [2, 3] : n >= 4 ? [2, 2] : n >= 2 ? [1, 2] : [1, 1];
+  const ims = (await Promise.all(items.slice(0, cols * rows).map(async it => loadImg(await blobUrl('full', it.id) || await blobUrl('thumb', it.id))))).filter(Boolean);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d'), cw = 1080, ch = 1350, cx = (W - cw) / 2, cy = (H - ch) / 2;
+  ctx.fillStyle = H > ch ? SHARE_BACK : SHARE_CARD; ctx.fillRect(0, 0, W, H);
+  if (H > ch) { ctx.shadowColor = 'rgba(6,43,30,.16)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 18; ctx.fillStyle = SHARE_CARD; ctx.fillRect(cx + 40, cy, cw - 80, ch); ctx.shadowColor = 'transparent'; }
+  const m = H > ch ? 96 : 60, px = cx + m, py = cy + (H > ch ? 56 : m), pw = cw - 2 * m, strip = 236, ph = ch - (py - cy) - strip, gap = 8;
+  const tw = (pw - gap * (cols - 1)) / cols, th = (ph - gap * (rows - 1)) / rows;
+  ctx.fillStyle = '#ece6da'; ctx.fillRect(px, py, pw, ph);
+  ims.forEach((im, i) => drawFit(ctx, im, px + (i % cols) * (tw + gap), py + Math.floor(i / cols) * (th + gap), tw, th, true));
+  if (cols * rows > 1) { ctx.fillStyle = SHARE_CARD; for (let c = 1; c < cols; c++) ctx.fillRect(px + c * (tw + gap) - gap, py, gap, ph); for (let r = 1; r < rows; r++) ctx.fillRect(px, py + r * (th + gap) - gap, pw, gap); }
+  drawStrip(ctx, col, items, px, py + ph, pw, strip);
+  return cv;
+}
+/** Eén pagina van de PDF (A4 liggend): voorblad of een blad met maximaal vier beelden en hun bron. */
+async function drawPdfPage(col, items, page, pages) {
+  const W = 2000, H = 1414, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d'), all = shareItems(col), m = 110;
+  ctx.fillStyle = SHARE_CARD; ctx.fillRect(0, 0, W, H); ctx.fillStyle = SHARE_INK; ctx.textBaseline = 'alphabetic';
+  if (!items) {
+    drawMark(ctx, m + 34, m + 34, 68);
+    ctx.font = shareSerif(150); ctx.fillText(fitText(ctx, col.name, W - 2 * m), m, H * 0.56);
+    ctx.globalAlpha = 0.62; ctx.font = shareSans(34); ctx.fillText(shareMeta(all.length), m, H * 0.56 + 76); ctx.globalAlpha = 1;
+    sharePalette(all).forEach((hex, i) => { ctx.fillStyle = hex; ctx.fillRect(m + i * 78, H - m - 14, 66, 14); });
+    return cv;
+  }
+  const n = items.length, cols = n > 1 ? 2 : 1, rows = n > 2 ? 2 : 1, gap = 60, capH = 84, top = m - 20, areaH = H - top - 120;
+  const cw = (W - 2 * m - gap * (cols - 1)) / cols, chh = (areaH - gap * (rows - 1)) / rows;
+  for (let i = 0; i < n; i++) {
+    const it = items[i], x = m + (i % cols) * (cw + gap), y = top + Math.floor(i / cols) * (chh + gap);
+    const im = await loadImg(await blobUrl('full', it.id) || await blobUrl('thumb', it.id));
+    const box = im ? drawFit(ctx, im, x, y, cw, chh - capH, false) : { x, y, w: cw, h: chh - capH };
+    ctx.fillStyle = SHARE_INK; ctx.textAlign = 'left'; ctx.font = shareSans(25);
+    const src = domainOf(it.source || ''), line = [it.title, src].filter(Boolean).join(' · ');
+    if (line) ctx.fillText(fitText(ctx, line, cw), box.x, box.y + box.h + 40);
+    if (it.note) { ctx.globalAlpha = 0.62; ctx.fillText(fitText(ctx, it.note.replace(/\s+/g, ' '), cw), box.x, box.y + box.h + 74); ctx.globalAlpha = 1; }
+  }
+  ctx.globalAlpha = 0.55; ctx.font = shareSans(22); ctx.textAlign = 'left'; ctx.fillText(col.name, m, H - 62);
+  ctx.textAlign = 'right'; ctx.fillText(page + ' / ' + pages, W - m, H - 62); ctx.globalAlpha = 1; ctx.textAlign = 'left';
+  return cv;
+}
+/** Maakt een PDF waarin elke pagina één JPEG is. Geen bibliotheek nodig. */
+function buildPdf(pages) {
+  const enc = new TextEncoder(), parts = [], offs = []; let pos = 0;
+  const put = d => { const b = typeof d === 'string' ? enc.encode(d) : d; parts.push(b); pos += b.length; };
+  const obj = (n, body, stream) => { offs[n] = pos; put(n + ' 0 obj\n' + body + (stream ? '\nstream\n' : '\n')); if (stream) { put(stream); put('\nendstream\n'); } put('endobj\n'); };
+  put('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, '<< /Type /Pages /Count ' + pages.length + ' /Kids [' + pages.map((_, i) => (3 + i * 3) + ' 0 R').join(' ') + '] >>');
+  pages.forEach((p, i) => {
+    const a = 3 + i * 3, draw = enc.encode('q 842 0 0 595 0 0 cm /Im0 Do Q');
+    obj(a, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /XObject << /Im0 ' + (a + 2) + ' 0 R >> >> /Contents ' + (a + 1) + ' 0 R >>');
+    obj(a + 1, '<< /Length ' + draw.length + ' >>', draw);
+    obj(a + 2, '<< /Type /XObject /Subtype /Image /Width ' + p.w + ' /Height ' + p.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + p.bytes.length + ' >>', p.bytes);
+  });
+  const xref = pos, count = 3 + pages.length * 3;
+  put('xref\n0 ' + count + '\n0000000000 65535 f \n' + Array.from({ length: count - 1 }, (_, i) => String(offs[i + 1]).padStart(10, '0') + ' 00000 n \n').join(''));
+  put('trailer\n<< /Size ' + count + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+  return new Blob(parts, { type: 'application/pdf' });
+}
+async function sharePdf(col, say) {
+  const items = shareItems(col), sheets = []; for (let i = 0; i < items.length; i += 4) sheets.push(items.slice(i, i + 4));
+  const out = [], total = sheets.length + 1;
+  for (let i = 0; i < total; i++) {
+    if (say) say('Pagina ' + (i + 1) + ' van ' + total);
+    const cv = await drawPdfPage(col, i ? sheets[i - 1] : null, i + 1, total);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.88));
+    out.push({ w: cv.width, h: cv.height, bytes: new Uint8Array(await blob.arrayBuffer()) });
+  }
+  return buildPdf(out);
+}
+function openShare(col) {
+  if (!shareItems(col).length) return toast('In deze collectie staan nog geen beelden');
+  const kinds = [['polaroid', 'Polaroid', 'Staand, 1080 × 1350'], ['verhaal', 'Verhaal', 'Staand, 1080 × 1920'], ['pdf', 'PDF', 'A4 liggend, met bron per beeld']];
+  let kind = 'polaroid', cv = null, busy = false;
+  const prev = h('div', { class: 'share-prev' }), said = h('p', { class: 'set-help' }), tabs = h('div', { class: 'share-kinds', role: 'radiogroup', 'aria-label': 'Vorm' });
+  const name = col.name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'collectie';
+  const draw = async () => {
+    tabs.replaceChildren(...kinds.map(([k, label]) => h('button', { type: 'button', class: 'btn small' + (k === kind ? ' primary' : ''), role: 'radio', 'aria-checked': k === kind ? 'true' : 'false', onclick: () => { kind = k; draw(); } }, label)));
+    said.textContent = kinds.find(k => k[0] === kind)[2] + '.'; copyBtn.hidden = kind === 'pdf';
+    const mine = kind;
+    const c = kind === 'pdf' ? await drawPdfPage(col, null, 1, 1) : await drawPolaroid(col, 1080, kind === 'verhaal' ? 1920 : 1350);
+    if (mine !== kind) return;
+    cv = c; c.className = 'share-canvas ' + kind; prev.replaceChildren(c);
+  };
+  const save = async () => {
+    if (busy || !cv) return; busy = true;
+    try {
+      if (kind === 'pdf') download(await sharePdf(col, t => { said.textContent = t; }), name + '.pdf');
+      else download(await new Promise(r => cv.toBlob(r, 'image/png')), name + '-' + kind + '.png');
+      said.textContent = 'Bewaard in je map Downloads.';
+    } catch (e) { said.textContent = 'Bewaren lukte niet.'; console.error('Delen mislukt', e); }
+    busy = false;
+  };
+  const copyBtn = h('button', { type: 'button', class: 'btn', onclick: async () => {
+    try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': new Promise(r => cv.toBlob(r, 'image/png')) })]); said.textContent = 'Beeld gekopieerd.'; } catch (e) { said.textContent = 'Kopiëren lukte niet.'; }
+  } }, 'Kopieer beeld');
+  openPanel('Delen', '', h('div', { class: 'share' }, tabs, prev, said), [copyBtn, h('button', { type: 'button', class: 'btn primary', id: 'shareSave', onclick: save }, 'Bewaar')]);
+  draw();
 }
 
 // ---------- Snel voorbeeld (spatie) ----------
@@ -2087,6 +2240,19 @@ function openSettings() {
   if (window.collectorApp) body.append(row('Nieuws',
     all.length ? h('ul', { class: 'newslist' }, all.map(n => h('li', null, h('strong', { text: n.title }), h('p', { text: n.text }), n.link && h('a', { class: 'btn-text', href: n.link, target: '_blank', rel: 'noopener' }, n.label)))) : h('p', { class: 'set-help', style: { margin: 0 }, text: 'Geen nieuws op dit moment.' }),
     h('div', { class: 'set-actions' }, h('a', { class: 'btn small', href: CHANGES, target: '_blank', rel: 'noopener', style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', marginLeft: 0 } }, 'Alle wijzigingen bekijken'))));
+  if (DB.http && info.mcp) {
+    const may = h('input', { type: 'checkbox', id: 'setMcpWrite' }), said = h('p', { class: 'set-help' });
+    const env = () => ({ ELECTRON_RUN_AS_NODE: '1', ...(location.port && location.port !== '4317' ? { COLLECTOR_URL: location.origin + '/' } : {}), ...(may.checked ? { COLLECTOR_MCP_WRITE: '1' } : {}) });
+    const q = t => /^[\w@%+=:,./-]+$/.test(t) ? t : "'" + t.replace(/'/g, "'\\''") + "'";
+    const copy = async (what, textOut) => { try { await navigator.clipboard.writeText(textOut); said.textContent = what + ' gekopieerd.'; } catch (e) { said.textContent = 'Kopiëren lukte niet.'; } };
+    body.append(row('AI-assistent',
+      h('p', { class: 'set-help', style: { margin: 0 }, text: 'Collector heeft zelf geen AI die je beelden ergens heen stuurt. Je eigen assistent (Claude, Cursor) kan wel in je bibliotheek kijken via MCP. Dat loopt via deze Mac, en alleen terwijl Collector open staat.' }),
+      h('label', { class: 'set-check' }, may, ' De assistent mag ook ordenen: tags, titels en collecties. Weggooien kan hij nooit.'),
+      h('div', { class: 'set-actions' },
+        btn('Kopieer voor Claude Code', () => copy('Opdracht voor de Terminal', 'claude mcp add collector ' + Object.entries(env()).map(([k, v]) => '--env ' + k + '=' + q(v)).join(' ') + ' -- ' + q(info.mcp.command) + ' ' + q(info.mcp.script))),
+        btn('Kopieer voor Claude Desktop of Cursor', () => copy('Instelling', JSON.stringify({ mcpServers: { collector: { command: info.mcp.command, args: [info.mcp.script], env: env() } } }, null, 2)))),
+      said));
+  }
   body.append(row('Browserextensie',
     h('p', { class: 'set-help', style: { margin: 0 }, text: 'Bewaar een beeld vanaf elke website zonder de pagina te verlaten: rechtsklik op het beeld, of houd ⌥ ingedrukt en klik. Voor Zen, Firefox, Chrome, Arc, Brave en Edge.' }),
     h('div', { class: 'set-actions' }, h('a', { class: 'btn small', href: EXT_URL, target: '_blank', rel: 'noopener', style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', marginLeft: 0 } }, 'Extensie downloaden'), btn('Zo installeer je hem', () => { close(); openCaptureHelp(); }))));

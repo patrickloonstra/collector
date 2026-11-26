@@ -91,7 +91,9 @@ Voor Cursor (`~/.cursor/mcp.json`):
 }
 ```
 
-Standaard kan een agent alleen lezen (`search_library`, `list_collections`, `get_item`). Zet `COLLECTOR_MCP_WRITE` op `1` in `env` om ook tags, notities en links te laten toevoegen. Verwijderen kan een agent nooit.
+De kant-en-klare regel staat ook in de app: Instellingen > AI-assistent.
+
+Standaard kan een agent alleen lezen (`search_library`, `list_collections`, `get_item`, `view_items`). Zet `COLLECTOR_MCP_WRITE` op `1` in `env` (of vink het aan in Instellingen) om hem ook te laten ordenen: `add_tags`, `remove_tags`, `set_details`, `add_to_collection`, `remove_from_collection`, `add_note` en `add_link`. Verwijderen kan een agent nooit.
 
 ## Voor wie meebouwt
 

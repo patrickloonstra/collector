@@ -3,12 +3,13 @@
 /**
  * MCP-server voor Collector: laat Claude, Cursor en andere agents in je bibliotheek zoeken.
  * Praat met de draaiende Collector-app op deze computer; er gaat niets naar buiten.
- * Standaard alleen lezen. Schrijven (tags, notities, links) staat aan met COLLECTOR_MCP_WRITE=1.
+ * Standaard alleen lezen. Schrijven en ordenen (tags, titels, collecties, notities, links) staat aan met COLLECTOR_MCP_WRITE=1.
+ * Weggooien kan een agent nooit.
  */
 const readline = require('readline');
 const BASE = (process.env.COLLECTOR_URL || 'http://127.0.0.1:4317/').replace(/\/?$/, '/');
 const WRITE = process.env.COLLECTOR_MCP_WRITE === '1';
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 async function api(method, url, body) {
   let r;
@@ -37,7 +38,7 @@ const text = v => ({ content: [{ type: 'text', text: typeof v === 'string' ? v :
 const tools = [
   { name: 'search_library', write: false,
     description: 'Zoek in de Collector-bibliotheek van de gebruiker (beelden, links en notities met ontwerpinspiratie). Zoekt in titel, tags, notitie, tekst, bron en collectienaam. Laat query weg om alles (of een hele collectie of tag) op te vragen. Geeft per item onder meer het bestandspad terug.',
-    inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Zoekwoorden; alle woorden moeten voorkomen' }, collection: { type: 'string', description: 'Naam van een collectie' }, tag: { type: 'string' }, type: { type: 'string', enum: ['beeld', 'link', 'notitie'] }, favorites: { type: 'boolean' }, limit: { type: 'integer', minimum: 1, maximum: 200, default: 30 } } },
+    inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Zoekwoorden; alle woorden moeten voorkomen' }, collection: { type: 'string', description: 'Naam van een collectie' }, tag: { type: 'string' }, type: { type: 'string', enum: ['beeld', 'link', 'notitie'] }, favorites: { type: 'boolean' }, unsorted: { type: 'boolean', description: 'Alleen items die nog in geen enkele collectie zitten' }, limit: { type: 'integer', minimum: 1, maximum: 200, default: 30 } } },
     async run(a) {
       const d = await load();
       let list = d.items.map(i => view(i, d));
@@ -45,6 +46,7 @@ const tools = [
       if (a.tag) list = list.filter(i => i.tags.includes(String(a.tag).toLowerCase()));
       if (a.type) list = list.filter(i => i.type === a.type);
       if (a.favorites) list = list.filter(i => i.favorite);
+      if (a.unsorted) list = list.filter(i => !i.collections.length);
       const toks = String(a.query || '').toLowerCase().split(/\s+/).filter(Boolean);
       if (toks.length) list = list.filter(i => { const hay = [i.title, i.note, i.text, i.source, ...i.tags, ...i.collections, ...i.colors].join(' ').toLowerCase(); return toks.every(t => hay.includes(t)); });
       const total = list.length; list = list.slice(0, Math.min(200, a.limit || 30));
@@ -65,6 +67,72 @@ const tools = [
       const out = text(view(it, d));
       if (it.type === 'image') { try { const r = await api('GET', 'blob/thumbs/' + encodeURIComponent(it.id)); out.content.push({ type: 'image', data: Buffer.from(await r.arrayBuffer()).toString('base64'), mimeType: 'image/webp' }); } catch { /* zonder miniatuur */ } }
       return out;
+    } },
+  { name: 'view_items', write: false, description: 'Laat tot 12 items tegelijk zien: per item de gegevens en, als het een beeld is, de miniatuur. Gebruik dit om een reeks beelden te bekijken voordat je ze ordent.',
+    inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 12 } }, required: ['ids'] },
+    async run(a) {
+      const d = await load(), content = [];
+      for (const id of a.ids.slice(0, 12)) {
+        const it = d.items.find(i => i.id === id);
+        if (!it) { content.push({ type: 'text', text: 'Geen item met id ' + id + '.' }); continue; }
+        content.push({ type: 'text', text: JSON.stringify(view(it, d)) });
+        if (it.type === 'image') { try { const r = await api('GET', 'blob/thumbs/' + encodeURIComponent(it.id)); content.push({ type: 'image', data: Buffer.from(await r.arrayBuffer()).toString('base64'), mimeType: 'image/webp' }); } catch { /* zonder miniatuur */ } }
+      }
+      return { content };
+    } },
+  { name: 'add_to_collection', write: true, description: 'Zet een of meer items in een collectie. Bestaat de collectie nog niet, dan wordt ze aangemaakt (tenzij create op false staat). Een item kan in meer collecties zitten; er wordt niets verplaatst of weggehaald.',
+    inputSchema: { type: 'object', properties: { collection: { type: 'string', description: 'Naam van de collectie' }, ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 200 }, create: { type: 'boolean', default: true } }, required: ['collection', 'ids'] },
+    async run(a) {
+      const d = await load(), name = String(a.collection || '').trim().slice(0, 80);
+      if (!name) throw new Error('Geef de collectie een naam.');
+      let c = d.cols.find(x => x.name.toLowerCase() === name.toLowerCase()), made = false;
+      if (!c) {
+        if (a.create === false) throw new Error('Collectie "' + name + '" bestaat niet.');
+        if (!d.libs[0]) throw new Error('Open Collector eerst één keer, dan bestaat de bibliotheek.');
+        c = { id: uid(), lib: d.libs[0].id, name, created: Date.now() }; await api('PUT', 'store/cols/' + c.id, c); made = true;
+      }
+      let n = 0; const missing = [];
+      for (const id of [...new Set(a.ids)]) {
+        const it = d.items.find(i => i.id === id);
+        if (!it) { missing.push(id); continue; }
+        if ((it.cols || []).includes(c.id)) continue;
+        it.cols = [...(it.cols || []), c.id]; await api('PUT', 'store/items/' + encodeURIComponent(it.id), it); n++;
+      }
+      return text((made ? 'Collectie "' + c.name + '" gemaakt. ' : '') + n + (n === 1 ? ' item' : ' items') + ' toegevoegd aan "' + c.name + '".' + (missing.length ? ' Niet gevonden: ' + missing.join(', ') + '.' : ''));
+    } },
+  { name: 'remove_from_collection', write: true, description: 'Haalt items uit een collectie. De items zelf blijven in de bibliotheek staan.',
+    inputSchema: { type: 'object', properties: { collection: { type: 'string' }, ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 200 } }, required: ['collection', 'ids'] },
+    async run(a) {
+      const d = await load(), c = d.cols.find(x => x.name.toLowerCase() === String(a.collection).toLowerCase());
+      if (!c) throw new Error('Collectie "' + a.collection + '" bestaat niet.');
+      let n = 0;
+      for (const id of [...new Set(a.ids)]) {
+        const it = d.items.find(i => i.id === id);
+        if (!it || !(it.cols || []).includes(c.id)) continue;
+        it.cols = it.cols.filter(x => x !== c.id); await api('PUT', 'store/items/' + encodeURIComponent(it.id), it); n++;
+      }
+      return text(n + (n === 1 ? ' item' : ' items') + ' uit "' + c.name + '" gehaald.');
+    } },
+  { name: 'remove_tags', write: true, description: 'Haalt tags van een item af.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, tags: { type: 'array', items: { type: 'string' }, minItems: 1 } }, required: ['id', 'tags'] },
+    async run(a) {
+      const it = await (await api('GET', 'store/items/' + encodeURIComponent(a.id))).json();
+      if (!it) throw new Error('Geen item met dit id.');
+      const drop = a.tags.map(t => String(t).trim().toLowerCase());
+      it.tags = (it.tags || []).filter(t => !drop.includes(t)); it.auto = (it.auto || []).filter(t => !drop.includes(t));
+      await api('PUT', 'store/items/' + encodeURIComponent(it.id), it);
+      return text('Tags weggehaald: ' + drop.join(', '));
+    } },
+  { name: 'set_details', write: true, description: 'Geeft een item een titel en/of een notitie. Wat je niet meegeeft blijft zoals het is.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, note: { type: 'string' } }, required: ['id'] },
+    async run(a) {
+      const it = await (await api('GET', 'store/items/' + encodeURIComponent(a.id))).json();
+      if (!it) throw new Error('Geen item met dit id.');
+      if (a.title === undefined && a.note === undefined) throw new Error('Geef een titel of een notitie mee.');
+      if (a.title !== undefined) it.title = String(a.title).slice(0, 200);
+      if (a.note !== undefined) it.note = String(a.note).slice(0, 20000);
+      await api('PUT', 'store/items/' + encodeURIComponent(it.id), it);
+      return text('Bijgewerkt.');
     } },
   { name: 'add_tags', write: true, description: 'Zet tags op een item in Collector.',
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, tags: { type: 'array', items: { type: 'string' }, minItems: 1 } }, required: ['id', 'tags'] },
@@ -100,7 +168,7 @@ const visible = () => tools.filter(t => WRITE || !t.write);
 
 async function handle(msg) {
   const { id, method, params = {} } = msg;
-  if (method === 'initialize') return { protocolVersion: params.protocolVersion || '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'collector', version: VERSION }, instructions: 'Collector is de lokale bibliotheek met ontwerpinspiratie van de gebruiker. Gebruik search_library om referenties te vinden en get_item om een beeld te bekijken.' };
+  if (method === 'initialize') return { protocolVersion: params.protocolVersion || '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'collector', version: VERSION }, instructions: 'Collector is de lokale bibliotheek met ontwerpinspiratie van de gebruiker. Gebruik search_library om referenties te vinden en get_item of view_items om beelden te bekijken.' + (WRITE ? ' Je mag ordenen: bekijk eerst wat er is (list_collections, search_library met unsorted), stel bij twijfel een indeling voor en voer die dan uit met add_to_collection, add_tags en set_details. Weggooien kan niet.' : '') };
   if (method === 'ping') return {};
   if (method === 'tools/list') return { tools: visible().map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) };
   if (method === 'tools/call') {

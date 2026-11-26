@@ -31,7 +31,7 @@ function log(text) {
 }
 process.on('uncaughtException', e => log('Onverwachte fout: ' + (e.stack || e)));
 process.on('unhandledRejection', e => log('Onverwachte fout: ' + (e && e.stack || e)));
-const info = () => ({ version: app.getVersion(), build: buildInfo.build || null, defaultLibrary: defaultLibrary(), firstRun: !readConfig().onboarded && !SMOKE && !UPDATE_TEST });
+const info = () => ({ version: app.getVersion(), build: buildInfo.build || null, defaultLibrary: defaultLibrary(), mcp: { command: process.execPath, script: path.join(app.getAppPath(), 'mcp', 'server.js') }, firstRun: !readConfig().onboarded && !SMOKE && !UPDATE_TEST });
 const showLog = () => { if (!fs.existsSync(logFile())) fs.writeFileSync(logFile(), ''); shell.showItemInFolder(logFile()); };
 const openSettings = () => { if (!win) createWindow(); win.show(); win.webContents.send('open-settings'); };
 

@@ -703,3 +703,9 @@ html[data-shell="mac"] .top { padding-top: 12px; }
 .egg-hi span { font: 400 clamp(40px, 6.4vw, 78px)/1.1 ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif; letter-spacing: -.025em; white-space: nowrap; }
 .egg-hi small { font-size: 12px; opacity: .55; }
 .egg-hi.weg { opacity: 0; }
+
+/* Delen */
+.share-kinds { display: flex; gap: 6px; margin-bottom: 14px; }
+.share-prev { display: grid; place-items: center; min-height: 300px; background: var(--side); border-radius: 10px; padding: 18px; }
+.share-canvas { display: block; max-width: 100%; height: auto; max-height: 56vh; width: auto; border: 1px solid var(--line); }
+.share .set-help { margin: 10px 0 0; }
