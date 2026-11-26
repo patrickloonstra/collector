@@ -14,14 +14,17 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 ## Testen
 
 - `node test/mcp.js` test de MCP-server (geen extra afhankelijkheden).
-- `node test/run.js <map met beelden>` test motor en interface in een echte browser (Playwright nodig).
-- `node test/extension.js <map met beelden>` test de extensie samen met de motor (Playwright nodig, poort 4317 moet vrij zijn).
+- `node test/run.js` test motor en interface in een echte browser (Playwright met browsers nodig; gebruikt `test/fixtures/`).
+- `node test/extension.js` test de extensie samen met de motor (Playwright met browsers nodig, poort 4317 moet vrij zijn).
+- `node test/app.js` test de echte app-schil via het venster: bestanden kiezen, slepen, instellingen, logboek. Op Linux met `xvfb-run -a`. Met `COLLECTOR_APP_BIN=<pad naar Collector>` test hij de gebouwde app; de workflow doet dat op de Mac.
 - Zelftest van de app: `COLLECTOR_SMOKE=1 COLLECTOR_LIBRARY=<tijdelijke map> COLLECTOR_USERDATA=<tijdelijke map> npx electron .` voegt één beeld toe en controleert of het bestand in de map staat. De workflow doet dit op een echte Mac met de gebouwde app.
 
 ## Valkuilen die al eens misgingen
 
 - **Noem een map in `userData` nooit `cache`.** macOS maakt geen verschil tussen hoofd- en kleine letters, en Chromium beheert zelf `Cache` en maakt die leeg. Onze map heet daarom `Collector-miniaturen`.
 - **De cache mag altijd verdwenen zijn.** Maak mappen aan vlak voor je erin schrijft of leest.
+
+- **Fouten horen in het logboek** (`collector.log` in `userData`, te openen via Help > Toon logboek). De gebruiker kan geen terminal lezen; vraag om het logboek.
 
 ## Uitbrengen
 

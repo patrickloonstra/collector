@@ -23,6 +23,8 @@ jobs:
       - run: npm ci
       - name: Test de MCP-koppeling
         run: node test/mcp.js
+      - name: Zet het buildnummer in de app
+        run: echo '{"build":${{ github.run_number }},"sha":"${{ github.sha }}"}' > app/build.json
       - name: Bouw de app (Apple Silicon en Intel)
         run: npm run dist
       - name: Zelftest van de gebouwde app op een Mac
@@ -32,6 +34,9 @@ jobs:
           codesign --verify --deep --strict dist/mac-arm64/Collector.app
           COLLECTOR_SMOKE=1 COLLECTOR_LIBRARY="$T/lib" COLLECTOR_USERDATA="$T/ud" dist/mac-arm64/Collector.app/Contents/MacOS/Collector
           ls -la "$T/lib" "$T/lib/Beelden"
+      - name: Test de gebouwde app via het echte venster (bestanden kiezen, slepen, instellingen)
+        timeout-minutes: 5
+        run: COLLECTOR_APP_BIN="$PWD/dist/mac-arm64/Collector.app/Contents/MacOS/Collector" node test/app.js
       - name: Pak de browserextensie in
         run: cd extension && zip -q -r ../dist/Collector-extensie.zip .
       - uses: actions/upload-artifact@v4

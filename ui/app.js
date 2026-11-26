@@ -20,11 +20,18 @@ function h(tag, attrs, ...kids) {
   for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(kid));
   return el;
 }
-function toast(msg) {
+function toast(msg, ms = 2600) {
   const t = h('div', { class: 'toast', text: msg });
   $('#toasts').append(t);
-  setTimeout(() => t.remove(), 2600);
+  setTimeout(() => t.remove(), ms);
 }
+/** Fouten gaan in de app naar het logboek, zodat ze terug te vinden zijn. */
+function logError(text) {
+  console.warn(text);
+  if (document.documentElement.dataset.store === 'http') fetch('api/log', { method: 'POST', headers: { 'X-Collector': '1' }, body: String(text).slice(0, 4000) }).catch(() => {});
+}
+addEventListener('error', e => logError('Fout in de interface: ' + (e.error && e.error.stack || e.message)));
+addEventListener('unhandledrejection', e => logError('Fout in de interface: ' + (e.reason && e.reason.stack || e.reason)));
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 function download(blob, name) {
   const a = h('a', { href: URL.createObjectURL(blob), download: name });
@@ -76,7 +83,7 @@ const HttpDB = {
   blob: s => s === 'thumbs' || s === 'fulls' || s === 'embs',
   async call(method, url, body, headers) {
     const r = await fetch('api/' + url, { method, body, headers: { 'X-Collector': '1', ...(headers || {}) } });
-    if (!r.ok) throw new Error('Opslaan mislukt (' + r.status + ')');
+    if (!r.ok) { let why = ''; try { why = (await r.json()).error || ''; } catch (e) { /* geen uitleg */ } throw new Error(why || 'fout ' + r.status); }
     return r;
   },
   async open() { this.info = await (await this.call('GET', 'info')).json(); },
@@ -232,7 +239,8 @@ async function analyse(blob) {
 // ---------- Toevoegen ----------
 let askedPersist = false;
 async function addImage(blob, meta = {}) {
-  const info = await analyse(blob);
+  let info;
+  try { info = await analyse(blob); } catch (e) { throw Object.assign(new Error('kan dit beeld niet lezen'), { kind: 'decode' }); }
   const item = {
     id: uid(), lib: state.libId, type: 'image',
     title: meta.title || '', note: '', source: meta.source || '',
@@ -280,7 +288,11 @@ async function addFiles(files, extra) {
   const out = [];
   for (const f of imgs) {
     try { out.push(await addImage(f, { name: f.name, title: (f.name || '').replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').replace(/^image$/i, ''), ...extra })); }
-    catch (e) { toast('Kon ' + (f.name || 'bestand') + ' niet lezen'); }
+    catch (e) {
+      const name = f.name || 'bestand';
+      toast(e.kind === 'decode' ? name + ': dit bestandstype kan Collector nog niet openen' : name + ' bewaren mislukt: ' + e.message, 6000);
+      logError('Toevoegen mislukt: ' + name + ' (' + (f.type || 'onbekend type') + ', ' + f.size + ' bytes): ' + (e.stack || e.message));
+    }
   }
   return out;
 }
@@ -1532,15 +1544,40 @@ async function adoptNew() {
   } catch (e) { console.warn(e); }
   finally { adopting = false; }
 }
+function openSettings() {
+  const app = window.collectorApp, info = DB.info || {};
+  const row = (label, ...kids) => h('div', { class: 'set-row' }, h('div', { class: 'set-label', text: label }), h('div', { class: 'set-body' }, kids));
+  const btn = (label, run) => h('button', { type: 'button', class: 'btn small', onclick: run }, label);
+  const body = h('div', { class: 'settings' });
+  if (DB.http) body.append(row('Bibliotheekmap',
+    h('div', { class: 'set-path', text: info.library }),
+    h('p', { class: 'set-help', text: 'Hier staan je beelden als gewone bestanden, in de map Beelden. Kies een andere map om je bibliotheek ergens anders te bewaren, bijvoorbeeld op een netwerkschijf. Een andere map kiezen verplaatst niets: je begint daar een eigen bibliotheek, of opent de bibliotheek die er al staat.' }),
+    app && h('div', { class: 'set-actions' },
+      btn('Toon in Finder', () => app.showLibrary()),
+      btn('Kies andere map…', async () => { if (await app.chooseLibrary()) location.reload(); }),
+      info.defaultLibrary && info.library !== info.defaultLibrary && btn('Terug naar standaardmap', async () => { if (await app.resetLibrary()) location.reload(); }))));
+  const n = libItems().filter(i => AI.embs.has(i.id)).length;
+  body.append(row('Zoeken op beeldinhoud',
+    h('p', { class: 'set-help', text: AI.on ? 'Staat aan. ' + n + (n === 1 ? ' beeld' : ' beelden') + ' doorzoekbaar op wat erop te zien is.' : 'Staat uit. Zet je het aan, dan haalt Collector eenmalig een beeldmodel op (ongeveer 155 MB). Het draait op je eigen computer; je beelden worden nergens heen gestuurd.' }),
+    h('div', { class: 'set-actions' }, btn(AI.on ? 'Uitzetten' : 'Aanzetten', () => { close(); AI.on ? aiDisable() : aiAsk(); }))));
+  body.append(row('Back-up',
+    h('p', { class: 'set-help', text: DB.http ? 'Je bibliotheekmap is zelf je back-up: kopieer de hele map. Daarnaast kun je alles in één bestand bewaren.' : 'Bewaar alles in één bestand, of zet zo\'n bestand terug.' }),
+    h('div', { class: 'set-actions' }, btn('Back-up maken', () => { close(); exportAll(); }), btn('Terugzetten…', () => { close(); $('#fileImport').click(); }))));
+  if (DB.http) body.append(row('Versie',
+    h('div', { text: 'Collector ' + (info.version || '') + (info.build ? ' (build ' + info.build + ')' : '') }),
+    app && h('p', { class: 'set-help', text: 'Een nieuwe versie installeer je door het nieuwe bestand te downloaden en Collector in Programma\'s te vervangen. Je bibliotheek blijft daarbij staan.' }),
+    app && h('div', { class: 'set-actions' }, btn('Zoek naar updates…', () => app.checkUpdates()), btn('Toon logboek', () => app.showLog()))));
+  const close = openPanel('Instellingen', '', body);
+}
 function initLibraryInfo() {
+  $('#btnSettings').onclick = openSettings;
+  addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); openSettings(); } });
   if (!DB.http) return;
   const app = window.collectorApp, where = $('#where');
-  const draw = () => where.replaceChildren(h('span', { class: 'libpath', title: DB.info.library, text: DB.info.library }),
-    app && h('span', { class: 'side-actions' },
-      h('button', { type: 'button', class: 'btn-text', onclick: () => app.showLibrary() }, 'Toon in Finder'),
-      h('button', { type: 'button', class: 'btn-text', onclick: async () => { if (await app.chooseLibrary()) location.reload(); } }, 'Andere map')));
-  draw();
-  if (DB.info.version) $('#appver').textContent = 'Collector ' + DB.info.version;
+  const parts = DB.info.library.split(/[\\/]/).filter(Boolean);
+  where.replaceChildren(h('span', { class: 'libpath', title: DB.info.library, text: (parts.length > 2 ? '…/' : '') + parts.slice(-2).join('/') }));
+  if (app && app.onOpenSettings) app.onOpenSettings(openSettings);
+  if (DB.info.version) $('#appver').textContent = 'Collector ' + DB.info.version + (DB.info.build ? ' (build ' + DB.info.build + ')' : '');
   const checkOutside = async () => {
     try { const info = await (await DB.call('GET', 'info')).json(); if (info.rev !== DB.info.rev) return location.reload(); } catch (e) { /* motor even weg */ }
     adoptNew();

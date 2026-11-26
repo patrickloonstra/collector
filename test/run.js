@@ -5,14 +5,14 @@
  * Vereist Playwright (staat niet in package.json; alleen nodig om te testen).
  */
 const fs = require('fs'), os = require('os'), path = require('path');
-const { chromium } = require('playwright');
+const { chromium } = (() => { try { return require('playwright'); } catch { return require('playwright-core'); } })();
 const { start } = require('../server/server');
 
 let failed = 0;
 const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed++; };
 
 (async () => {
-  const src = process.argv[2];
+  const src = process.argv[2] || path.join(__dirname, 'fixtures');
   const imgs = fs.readdirSync(src).filter(f => /\.(jpe?g|png)$/i.test(f)).map(f => path.join(src, f));
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'collector-test-'));
   const library = path.join(tmp, 'Mijn Collector'), cache = path.join(tmp, 'cache');

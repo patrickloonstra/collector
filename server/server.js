@@ -37,6 +37,7 @@ async function start(opts) {
   let lib = await new Library(opts.library, opts.cache).open();
   const state = { get library() { return lib; } };
   let rev = 0;
+  const log = opts.onLog || (t => console.error(t));
   const listeners = new Set();
   const notify = what => { for (const r of listeners) r.write('data: ' + what + '\n\n'); };
 
@@ -70,9 +71,10 @@ async function start(opts) {
       }
       await sendFile(req, res, file, TYPES[path.extname(file)] || 'application/octet-stream');
     } catch (e) {
-      if (!res.headersSent) json(res, e.status || 500, { error: e.status ? e.message : 'interne fout' });
+      // De server is alleen lokaal bereikbaar, dus de echte reden mag mee: dat helpt bij het oplossen.
+      if (!res.headersSent) json(res, e.status || 500, { error: e.message });
       else res.destroy();
-      if (!e.status) console.error(e);
+      if (!e.status) log('Fout bij ' + req.method + ' ' + req.url + ': ' + (e.stack || e.message));
     }
   });
 
@@ -121,6 +123,7 @@ async function start(opts) {
       res.write(': ok\n\n'); listeners.add(res); req.on('close', () => listeners.delete(res));
       return;
     }
+    if (what === 'log' && m === 'POST') { log((await readBody(req)).toString('utf8').slice(0, 4000)); return json(res, 200, { ok: true }); }
     if (what === 'embeddings' && m === 'GET') return json(res, 200, await lib.embeddings());
     if (what === 'unindexed' && m === 'GET') return json(res, 200, await lib.unindexed());
     if (what === 'raw' && a && m === 'GET') { const p = lib.rawPath(a); if (!p) throw fail(404, 'niet gevonden'); return sendFile(req, res, p, Library.mime(p)); }

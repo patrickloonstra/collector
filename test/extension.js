@@ -1,11 +1,11 @@
 'use strict';
 /** Test de browserextensie samen met de motor: Alt-klik op een pagina -> bestand in de bibliotheekmap. Gebruik: node test/extension.js <map met beelden> */
 const fs = require('fs'), os = require('os'), path = require('path'), http = require('http');
-const { chromium } = require('playwright');
+const { chromium } = (() => { try { return require('playwright'); } catch { return require('playwright-core'); } })();
 const { start } = require('../server/server');
 let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed++; };
 (async () => {
-  const src = process.argv[2], img = fs.readdirSync(src).find(f => /\.jpe?g$/i.test(f));
+  const src = process.argv[2] || path.join(__dirname, 'fixtures'), img = fs.readdirSync(src).find(f => /\.jpe?g$/i.test(f));
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'collector-ext-'));
   const library = path.join(tmp, 'lib');
   const srv = await start({ library, cache: path.join(tmp, 'cache'), port: 4317 });

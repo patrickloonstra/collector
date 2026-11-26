@@ -13,6 +13,25 @@ const writeConfig = c => { fs.mkdirSync(path.dirname(configFile()), { recursive:
 const defaultLibrary = () => path.join(app.getPath('pictures'), 'Collector');
 
 let server = null, win = null;
+const RELEASES = 'https://github.com/patrickloonstra/collector/releases';
+const buildInfo = (() => { try { return require('./build.json'); } catch { return {}; } })();
+
+// Logboek: fouten komen in een bestand dat de gebruiker kan openen (Help > Toon logboek).
+const logFile = () => path.join(app.getPath('userData'), 'collector.log');
+function log(text) {
+  const line = new Date().toISOString() + '  ' + String(text).replace(/\s+$/, '') + '\n';
+  try {
+    fs.mkdirSync(path.dirname(logFile()), { recursive: true });
+    try { if (fs.statSync(logFile()).size > 1024 * 1024) fs.renameSync(logFile(), logFile() + '.oud'); } catch { /* nog geen logboek */ }
+    fs.appendFileSync(logFile(), line);
+  } catch { /* loggen mag nooit de app breken */ }
+  if (SMOKE) console.error(line.trim());
+}
+process.on('uncaughtException', e => log('Onverwachte fout: ' + (e.stack || e)));
+process.on('unhandledRejection', e => log('Onverwachte fout: ' + (e && e.stack || e)));
+const info = () => ({ version: app.getVersion(), build: buildInfo.build || null, defaultLibrary: defaultLibrary() });
+const showLog = () => { if (!fs.existsSync(logFile())) fs.writeFileSync(logFile(), ''); shell.showItemInFolder(logFile()); };
+const openSettings = () => { if (!win) createWindow(); win.show(); win.webContents.send('open-settings'); };
 
 async function pickFolder(title) {
   const r = await dialog.showOpenDialog(win || undefined, { title, buttonLabel: 'Kies deze map', properties: ['openDirectory', 'createDirectory'], defaultPath: app.getPath('pictures') });
@@ -27,10 +46,11 @@ async function boot() {
   const cache = path.join(app.getPath('userData'), 'Collector-miniaturen');
   for (;;) {
     try {
-      server = await start({ library, cache, port: SMOKE ? 0 : 4317, onInfo: () => ({ version: app.getVersion() }) });
+      server = await start({ library, cache, port: SMOKE ? 0 : 4317, onInfo: info, onLog: log });
       break;
     } catch (e) {
-      if (e.code === 'EADDRINUSE') { server = await start({ library, cache, port: 0, onInfo: () => ({ version: app.getVersion() }) }); break; }
+      if (e.code === 'EADDRINUSE') { server = await start({ library, cache, port: 0, onInfo: info, onLog: log }); break; }
+      log('Bibliotheekmap niet bereikbaar: ' + library + ': ' + (e.stack || e.message));
       if (SMOKE) throw e;
       const r = await dialog.showMessageBox({ type: 'warning', message: 'De bibliotheekmap is niet bereikbaar', detail: library + '\n\nStaat de map op een netwerkschijf, koppel die dan eerst in Finder.\n\n(' + e.message + ')', buttons: ['Opnieuw proberen', 'Andere map kiezen', 'Standaardmap gebruiken', 'Stoppen'], defaultId: 0, cancelId: 3 });
       if (r.response === 3) { app.quit(); return false; }
@@ -39,6 +59,7 @@ async function boot() {
     }
   }
   if (!process.env.COLLECTOR_LIBRARY && cfg.library !== library) writeConfig({ ...cfg, library });
+  log('Collector ' + app.getVersion() + (buildInfo.build ? ' build ' + buildInfo.build : '') + ' gestart (' + process.platform + ' ' + process.arch + '), bibliotheek: ' + server.state.library.dir);
   return true;
 }
 
@@ -56,11 +77,30 @@ function createWindow() {
 }
 
 ipcMain.handle('show-library', () => shell.openPath(server.state.library.dir));
+ipcMain.handle('show-log', () => showLog());
+ipcMain.handle('check-updates', () => shell.openExternal(RELEASES));
+ipcMain.handle('reset-library', async () => {
+  try { await server.switchLibrary(defaultLibrary()); } catch (e) { dialog.showErrorBox('De standaardmap kan niet gebruikt worden', defaultLibrary() + '\n\n' + e.message); return false; }
+  writeConfig({ ...readConfig(), library: server.state.library.dir });
+  return true;
+});
+
+function buildMenu() {
+  const mac = process.platform === 'darwin';
+  const settings = { label: 'Instellingen…', accelerator: 'CmdOrCtrl+,', click: openSettings };
+  const updates = { label: 'Zoek naar updates…', click: () => shell.openExternal(RELEASES) };
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    ...(mac ? [{ label: app.name, submenu: [{ role: 'about' }, { type: 'separator' }, settings, updates, { type: 'separator' }, { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] }]
+      : [{ label: 'Bestand', submenu: [settings, updates, { type: 'separator' }, { role: 'quit' }] }]),
+    { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },
+    { role: 'help', submenu: [{ label: 'Toon bibliotheek in Finder', click: () => shell.openPath(server.state.library.dir) }, { label: 'Toon logboek', click: showLog }, { label: 'Downloads en versies', click: () => shell.openExternal(RELEASES) }] },
+  ]));
+}
 ipcMain.handle('choose-library', async () => {
   const dir = await pickFolder('Kies een map voor je bibliotheek');
   if (!dir) return false;
   try { await server.switchLibrary(dir); }
-  catch (e) { dialog.showErrorBox('Deze map kan niet gebruikt worden', dir + '\n\n' + e.message); return false; }
+  catch (e) { log('Map kiezen mislukt: ' + dir + ': ' + (e.stack || e.message)); dialog.showErrorBox('Deze map kan niet gebruikt worden', dir + '\n\n' + e.message); return false; }
   writeConfig({ ...readConfig(), library: server.state.library.dir });
   return true;
 });
@@ -91,6 +131,7 @@ else {
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
   app.whenReady().then(async () => {
     if (!await boot()) return;
+    buildMenu();
     createWindow();
     if (SMOKE) {
       try { await smoke(); await server.close(); app.exit(0); }
