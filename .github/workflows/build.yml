@@ -32,10 +32,14 @@ jobs:
           codesign --verify --deep --strict dist/mac-arm64/Collector.app
           COLLECTOR_SMOKE=1 COLLECTOR_LIBRARY="$T/lib" COLLECTOR_USERDATA="$T/ud" dist/mac-arm64/Collector.app/Contents/MacOS/Collector
           ls -la "$T/lib" "$T/lib/Beelden"
+      - name: Pak de browserextensie in
+        run: cd extension && zip -q -r ../dist/Collector-extensie.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: Collector-mac
-          path: dist/*.dmg
+          path: |
+            dist/*.dmg
+            dist/Collector-extensie.zip
           if-no-files-found: error
       - name: Zet de build klaar als download
         env:
@@ -43,6 +47,6 @@ jobs:
         run: |
           V=$(node -p "require('./package.json').version")
           TAG="v$V-build${{ github.run_number }}"
-          gh release create "$TAG" dist/*.dmg --prerelease --target "$GITHUB_SHA" \
+          gh release create "$TAG" dist/*.dmg dist/Collector-extensie.zip --prerelease --target "$GITHUB_SHA" \
             --title "Collector $V (build ${{ github.run_number }})" \
             --notes "Automatische build van \`${GITHUB_REF_NAME}\`. Kies het arm64-bestand voor een Mac met Apple-chip (M1 en nieuwer), x64 voor een Intel-Mac. Zie README voor de eerste keer openen."

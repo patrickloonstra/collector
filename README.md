@@ -25,6 +25,13 @@ Collector/
 
 Een update installeer je voorlopig op dezelfde manier: nieuw `.dmg` downloaden en de app in Programma's vervangen. Je bibliotheekmap wordt daarbij niet aangeraakt.
 
+## Bewaren vanuit je browser
+
+Bij elke release zit `Collector-extensie.zip`. Daarmee bewaar je een beeld zonder de pagina te verlaten: rechtsklik op het beeld en kies "Bewaar beeld in Collector", of houd Alt (⌥) ingedrukt en klik erop. Staat de app open, dan landt het beeld rechtstreeks in je bibliotheekmap, met de pagina als bron.
+
+- **Zen en Firefox:** pak het zip-bestand uit, open `about:debugging`, kies "Deze Firefox" (in Zen: "Deze Zen"), klik "Tijdelijke add-on laden" en kies `manifest.json`. Dit verdwijnt na een herstart van de browser; voor blijvend gebruik moet Mozilla de extensie ondertekenen.
+- **Chrome, Arc, Brave, Edge:** pak het zip-bestand uit, open `chrome://extensions`, zet "Ontwikkelaarsmodus" aan, klik "Uitgepakte extensie laden" en kies de map.
+
 ## Agents (MCP)
 
 Claude, Cursor en andere agents kunnen in je bibliotheek zoeken zolang de app open staat. Er gaat niets naar buiten; de koppeling praat met de app op je eigen Mac.
@@ -85,5 +92,5 @@ node test/mcp.js
 | `server/` | De motor: leest en schrijft de bibliotheekmap en levert de interface, alleen bereikbaar vanaf deze computer |
 | `app/` | De Electron-schil: venster, mapkeuze, standaardmap |
 | `mcp/` | MCP-server voor agents |
-| `extension/` | Browserextensie (rechtsklik, Alt-klik, werkbalkknop). Werkt nu met de webversie; koppeling met de app volgt |
+| `extension/` | Browserextensie (rechtsklik, Alt-klik, werkbalkknop). Bewaart in de app als die open staat, anders in de webversie |
 | `.github/workflows/build.yml` | Bouwt bij elke push de app op een Mac, test hem daar en zet het `.dmg` klaar onder Releases |
