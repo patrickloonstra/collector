@@ -13,12 +13,17 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   const p = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   const shot = n => shots ? p.screenshot({ path: path.join(shots, n + '.png') }) : null;
-  await p.goto(srv.url); await p.waitForSelector('.empty h2');
+  await p.goto(srv.url); await p.waitForFunction(() => document.querySelector('#splashHi').textContent.length > 2);
+  await p.waitForTimeout(700); await shot('0-opening');
+  ok(await p.$eval('#splash h1', e => e.textContent) === 'Collector' && (await p.textContent('#splashHi')).length > 3, 'openingsscherm: logo, naam en begroeting "' + await p.textContent('#splashHi') + '"');
+  await p.waitForSelector('#splash', { state: 'detached', timeout: 8000 }); ok(true, 'openingsscherm veegt weg');
+  await p.waitForSelector('.empty h2');
+  ok(await p.$$eval('.side-foot', e => e.every(x => getComputedStyle(x).display === 'none')) && await p.isVisible('#btnSettings'), 'linksonder staat alleen nog de bibliotheek en een bolletje naar Instellingen');
   ok(await p.$$eval('.swatch', e => e.length) === 0, 'geen kleurbolletjes meer in de zijbalk');
   await p.setInputFiles('#file', imgs);
   await p.waitForSelector('.wtile', { timeout: 60000 });
   await p.waitForTimeout(900);
-  ok(await p.$eval('#gridWrap', e => e.hidden) && (await p.$$eval('.wtile', e => e.length)) >= imgs.length, 'met ' + imgs.length + ' beelden opent Ontdek: een wand die het scherm vult (' + (await p.$$eval('.wtile', e => e.length)) + ' tegels)');
+  ok(await p.$eval('#gridWrap', e => e.hidden) && (await p.$$eval('.wtile', e => e.length)) >= 10, 'met ' + imgs.length + ' beelden opent Ontdek: een wand die het scherm vult (' + (await p.$$eval('.wtile', e => e.length)) + ' tegels)');
   ok((await p.getAttribute('#mode button[data-mode="wall"]', 'aria-pressed')) === 'true', 'onderin staat Ontdek aan');
   // drijven: zonder iets te doen bewegen de tegels
   await p.mouse.move(100, 500); // buiten de wand (zijbalk)
@@ -63,7 +68,14 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await p.mouse.move(820, 430); await p.waitForTimeout(150); await p.keyboard.press('c'); await p.waitForTimeout(700);
   await p.hover('.bak-fan'); await p.waitForTimeout(350); await p.click('.bak-btn >> text=Naar canvas'); await p.fill('#dlg input', 'Bord'); await p.click('#dlg button.primary');
   await p.waitForSelector('#viewSpace:not([hidden]) .node'); ok(true, 'Naar canvas: de verzameling staat op een vrij canvas');
+  await p.waitForTimeout(500); await p.click('.node'); await p.waitForSelector('#spInfo .detail-panel');
+  ok(await p.isVisible('#spInfo .title-input') && await p.$eval('#detail', e => e.hidden), 'klik op een beeld op het canvas: zwevend infovenster rechts, het canvas blijft bruikbaar');
   await shot('6-canvas');
+  const hgt = () => p.$eval('#spInfo .detail-panel', e => e.getBoundingClientRect().height);
+  const h0 = await hgt(); await p.click('#spInfo .detail-head .icon-btn >> nth=0'); await p.waitForTimeout(200); const h1 = await hgt();
+  ok(h1 < h0 / 3, 'het infovenster is in te klappen (' + Math.round(h0) + ' → ' + Math.round(h1) + ' px)');
+  await p.click('#spInfo .detail-head .icon-btn >> nth=0');
+  await p.mouse.click(300, 700); await p.waitForTimeout(200); ok(await p.$('#spInfo .detail-panel') === null, 'klik naast het beeld sluit het infovenster');
   await p.click('#nav >> text=Alles'); await p.waitForSelector('.wtile');
   // Raster en terug, zoomen, sorteren
   await p.click('#mode >> text=Raster'); await p.waitForSelector('.card');
@@ -77,7 +89,7 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   ok(await p.$eval('.wtile', e => e.offsetWidth) >= tw0, 'zoomen met + werkt op de wand');
   await p.selectOption('#sort', 'shuffle'); await p.waitForTimeout(300); ok(await p.$$eval('.wtile', e => e.length) > 0, 'sorteren op Willekeurig');
   // klik opent het beeld; Tags zijn ingeklapt; kleur zoeken via het snelmenu
-  await p.mouse.click(820, 430); await p.waitForSelector('.detail-panel'); ok(true, 'klik op een tegel opent het beeld'); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+  await p.mouse.click(820, 430); await p.waitForSelector('.detail-panel'); ok(true, 'klik op een tegel opent het beeld'); await p.waitForTimeout(400); await shot('7-beeld'); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
   ok(await p.$$eval('#nav .auto-dot', e => e.length) === 0, 'tags zijn ingeklapt');
   await p.click('.foldbtn'); await p.waitForTimeout(150); ok(await p.$$eval('#nav .auto-dot', e => e.length) > 0, 'klik op Tags klapt ze uit');
   await p.keyboard.press('Control+k'); await p.keyboard.type('kleur: blauw'); await p.keyboard.press('Enter'); await p.waitForTimeout(500);

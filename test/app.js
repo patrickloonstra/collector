@@ -14,6 +14,15 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   const app = await _electron.launch({ executablePath: bin || require('electron'), args, env: { ...process.env, COLLECTOR_LIBRARY: library, COLLECTOR_USERDATA: ud } });
   const p = await app.firstWindow();
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+  // 0. openingsscherm en, de eerste keer, de uitleg
+  ok(await p.$eval('#splash h1', e => e.textContent) === 'Collector', 'openingsscherm met logo en naam');
+  await p.waitForFunction(() => document.querySelector('#splashHi') && document.querySelector('#splashHi').textContent.length > 3, null, { timeout: 5000 });
+  ok(true, 'begroeting wordt getypt: "' + await p.textContent('#splashHi') + '"' + ((await p.textContent('#splashLang')) ? ' (' + await p.textContent('#splashLang') + ')' : ''));
+  await p.waitForSelector('#onboard .ob-card', { timeout: 10000 });
+  ok(await p.$('#splash') === null, 'openingsscherm verdwijnt vanzelf');
+  ok((await p.textContent('#obPath')) === library, 'eerste keer: uitleg toont de bibliotheekmap');
+  await p.click('#obNext'); ok(await p.$$eval('.ob-key', e => e.length) === 3, 'uitleg: drie toetsen'); await p.click('#obNext'); await p.click('#obNext');
+  ok(await p.$eval('#onboard', e => e.hidden), 'uitleg sluiten');
   await p.waitForSelector('.empty h2');
   await p.click('#mode >> text=Raster');
   // 1. bestandskiezer
@@ -46,6 +55,7 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await p.waitForSelector('.settings .set-path');
   ok((await p.textContent('.set-path')) === library, 'menu Instellingen opent het venster met de bibliotheekmap');
   ok(await p.$$eval('.set-actions .btn', e => ['Toon in Finder', 'Kies andere map…', 'Zoek naar updates', 'Toon logboek'].every(t => e.some(b => b.textContent === t))), 'knoppen: Finder, andere map, updates, logboek');
+  ok(/Patrick Loonstra/.test(await p.textContent('.about')) && await p.$$eval('.set-actions a', e => e.some(x => x.textContent === 'Collector kopen')), 'instellingen: wie het maakt en waar je hem koopt');
   await p.screenshot({ path: path.join(os.tmpdir(), 'collector-instellingen.png') });
   await p.click('#dlg >> text=Sluiten');
   await p.keyboard.press('Control+,'); await p.waitForSelector('.settings'); ok(true, 'sneltoets opent de instellingen'); await p.click('#dlg >> text=Sluiten');
@@ -53,7 +63,13 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await p.waitForTimeout(300);
   const logText = fs.readFileSync(path.join(ud, 'collector.log'), 'utf8');
   ok(/gestart/.test(logText) && /Toevoegen mislukt: ontwerp\.psd/.test(logText), 'logboek bevat de start en het mislukte bestand');
+  // 7. tweede start: geen uitleg meer
+  await app.close();
+  const app2 = await _electron.launch({ executablePath: bin || require('electron'), args, env: { ...process.env, COLLECTOR_LIBRARY: library, COLLECTOR_USERDATA: ud } });
+  const p2 = await app2.firstWindow(); await p2.waitForSelector('#splash', { state: 'detached', timeout: 10000 }); await p2.waitForTimeout(400);
+  ok(await p2.$eval('#onboard', e => e.hidden), 'tweede start: wel het openingsscherm, geen uitleg meer');
+  await app2.close();
   ok(errs.length === 0, errs.length ? 'fouten: ' + errs.slice(0, 3).join(' / ') : 'geen fouten in het venster');
-  await app.close(); fs.rmSync(tmp, { recursive: true, force: true });
+  fs.rmSync(tmp, { recursive: true, force: true });
   console.log(failed ? failed + ' mislukt' : 'Alles geslaagd'); process.exit(failed ? 1 : 0);
 })().catch(e => { console.error('FAIL', e.message.slice(0, 600)); process.exit(1); });

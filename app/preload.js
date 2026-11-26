@@ -1,10 +1,12 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('collectorApp', {
+  platform: process.platform,
   showLibrary: () => ipcRenderer.invoke('show-library'),
   chooseLibrary: () => ipcRenderer.invoke('choose-library'),
   resetLibrary: () => ipcRenderer.invoke('reset-library'),
   showLog: () => ipcRenderer.invoke('show-log'),
+  setOnboarded: () => ipcRenderer.invoke('set-onboarded'),
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
   update: {
     get: () => ipcRenderer.invoke('update-get'),

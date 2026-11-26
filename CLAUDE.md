@@ -27,6 +27,10 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 - Sneltoetsen op het beeld onder de muis: L love, C collect (naar de verzamelbak linksonder, `bak*`), spatie voorbeeld, F volledig scherm, ⌘K snelmenu.
 - Geen kleurbolletjes in de zijbalk; zoeken op kleur zit in het snelmenu.
 - Beweging hoort erbij, maar respecteer `prefers-reduced-motion` (`calm`).
+- Elke start: een kort openingsscherm (logo, naam, getypte begroeting in een willekeurige taal, krabbelpatroon) dat naar beneden wegveegt. Alleen de allereerste keer volgt de uitleg in drie stappen (`onboarded` in de app-instellingen).
+- De gegevens van een beeld staan in een zwevend, inklapbaar venster rechts, nooit vastgeklikt aan de rand. Op het canvas opent het bij één klik.
+- Het venster heeft geen titelbalk. Linksonder staan alleen de bibliotheek, een plus (toevoegen) en een tandwiel (Instellingen). Status, opslag, back-up, versie, extensie en kopen staan in Instellingen.
+- De hoofdhandeling is beelden erin slepen; knoppen daarvoor blijven klein.
 
 ## Beeldmerk en README
 

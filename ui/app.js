@@ -1,6 +1,8 @@
 /* Collector: verzamel, orden en vind beeldreferenties terug. Alles staat lokaal in IndexedDB. */
 (() => {
 'use strict';
+// In de Mac-app is de titelbalk weg; de bovenrand van het venster is dan de plek om het venster te verslepen.
+if (window.collectorApp && window.collectorApp.platform === 'darwin') document.documentElement.dataset.shell = 'mac';
 
 // ---------- Hulpjes ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -745,13 +747,17 @@ async function purgeItem(it) {
 }
 // ---------- Detail ----------
 let detailId = null;
-function openDetail(id) {
+let infoMin = false;
+/** Opent een beeld. Met mode 'canvas' verschijnt alleen het zwevende infovenster, zodat je op het canvas kunt doorwerken. */
+function openDetail(id, mode) {
   const it = state.items.find(i => i.id === id);
   if (!it) return;
-  detailId = id;
+  const onCanvas = mode === 'canvas';
+  if (!onCanvas) detailId = id;
   const save = debounce(() => DB.put('items', it), 300);
-  const box = $('#detail');
-  const idx = lastVisible.findIndex(i => i.id === id);
+  const box = onCanvas ? $('#spInfo') : $('#detail');
+  const idx = onCanvas ? -1 : lastVisible.findIndex(i => i.id === id);
+  const shut = onCanvas ? () => { sp.infoId = null; box.replaceChildren(); } : closeDetail;
   const go = d => { const n = lastVisible[idx + d]; if (n) openDetail(n.id); };
 
   let stage;
@@ -783,11 +789,11 @@ function openDetail(id) {
   drawTags();
 
   const pal = it.palette && it.palette.length ? h('div', { class: 'field' }, h('span', { class: 'lbl', text: 'Kleuren' }),
-    h('div', { class: 'palette' }, it.palette.map(p => h('button', { type: 'button', 'data-hex': p.hex, 'aria-label': 'Zoek op ' + p.hex, style: { background: p.hex, flex: p.pct + ' 0 0' }, onclick: () => { closeDetail(); setColor(p.hex); } }))),
+    h('div', { class: 'palette' }, it.palette.map(p => h('button', { type: 'button', 'data-hex': p.hex, 'aria-label': 'Zoek op ' + p.hex, style: { background: p.hex, flex: p.pct + ' 0 0' }, onclick: () => { shut(); setColor(p.hex); } }))),
     h('div', { class: 'hexes' }, it.palette.map(p => h('button', { type: 'button', title: 'Kopieer', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(p.hex).then(() => toast(p.hex + ' gekopieerd'), () => toast(p.hex)); } }, p.hex)))) : null;
 
   const colField = h('div', { class: 'field' }, h('span', { class: 'lbl', text: 'Collecties' }), h('div', { class: 'tags' },
-    (it.cols || []).map(id => { const c = state.cols.find(x => x.id === id); return c && h('span', { class: 'chip' }, c.name, h('button', { type: 'button', 'aria-label': 'Uit ' + c.name + ' halen', onclick: async () => { it.cols = it.cols.filter(x => x !== id); await DB.put('items', it); renderSide(); openDetail(it.id); } }, '×')); }),
+    (it.cols || []).map(id => { const c = state.cols.find(x => x.id === id); return c && h('span', { class: 'chip' }, c.name, h('button', { type: 'button', 'aria-label': 'Uit ' + c.name + ' halen', onclick: async () => { it.cols = it.cols.filter(x => x !== id); await DB.put('items', it); if (onCanvas) return renderAll(); renderSide(); openDetail(it.id); } }, '×')); }),
     h('button', { type: 'button', class: 'chip add', onclick: e => colMenu(e.currentTarget, [it.id]) }, '+ Collectie')));
   const sim = similar(it);
   const simField = sim.length ? h('div', { class: 'field' }, h('span', { class: 'lbl', text: 'Vergelijkbaar' }), h('div', { class: 'simrow' }, sim.map(o => h('button', { type: 'button', title: o.title || 'Openen', 'aria-label': 'Open ' + (o.title || 'vergelijkbaar beeld'), onclick: () => openDetail(o.id) }, thumbEl(o))))) : null;
@@ -797,12 +803,12 @@ function openDetail(id) {
   if (it.size) row('Grootte', fmtSize(it.size));
   row('Toegevoegd', fmtDate(it.created));
 
-  box.replaceChildren(
-    h('div', { class: 'detail-stage', onclick: e => { if (e.target === e.currentTarget) closeDetail(); } }, stage,
-      idx > 0 && h('button', { type: 'button', class: 'detail-nav prev', 'aria-label': 'Vorige', onclick: () => go(-1) }, '‹'),
-      idx > -1 && idx < lastVisible.length - 1 && h('button', { type: 'button', class: 'detail-nav next', 'aria-label': 'Volgende', onclick: () => go(1) }, '›')),
-    h('div', { class: 'detail-panel' },
-      h('div', { class: 'detail-head' }, h('span', { text: idx > -1 ? (idx + 1) + ' van ' + lastVisible.length : '' }), h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Sluiten', onclick: closeDetail }, '×')),
+  const panel = h('div', { class: 'detail-panel' + (infoMin ? ' min' : '') },
+      h('div', { class: 'detail-head' },
+        h('span', { class: 'pos', text: idx > -1 ? (idx + 1) + ' van ' + lastVisible.length : onCanvas ? 'Op het canvas' : '' }),
+        h('span', { class: 'ttl', text: it.title || (it.type === 'note' ? 'Notitie' : it.type === 'link' ? domainOf(it.url) : 'Beeld') }),
+        h('button', { type: 'button', class: 'icon-btn', title: 'In- of uitklappen', 'aria-label': 'Infovenster in- of uitklappen', onclick: () => { infoMin = !infoMin; panel.classList.toggle('min', infoMin); } }, '–'),
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Sluiten', onclick: shut }, '×')),
       h('div', { class: 'field' }, h('input', { type: 'text', class: 'title-input', value: it.title || '', placeholder: 'Titel', 'aria-label': 'Titel', oninput: e => { it.title = e.target.value; save(); } })),
       pal,
       colField,
@@ -814,7 +820,14 @@ function openDetail(id) {
       h('div', { class: 'detail-actions' },
         isUrl(it.source || '') && h('a', { class: 'btn', href: it.source, target: '_blank', rel: 'noopener noreferrer', style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none' } }, 'Bron openen'),
         it.type === 'image' && h('button', { type: 'button', class: 'btn', onclick: async () => { const b = await DB.get('fulls', it.id); download(b, (it.title || 'collector-' + it.id) + '.' + ((b.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg'))); } }, 'Downloaden'),
-        h('button', { type: 'button', class: 'btn danger', onclick: () => { closeDetail(); removeItem(it); } }, 'Verwijderen'))));
+        onCanvas && h('button', { type: 'button', class: 'btn', onclick: () => openDetail(it.id) }, 'Groot bekijken'),
+        h('button', { type: 'button', class: 'btn danger', onclick: () => { shut(); removeItem(it); } }, 'Verwijderen')));
+  if (onCanvas) { sp.infoId = it.id; box.replaceChildren(panel); return; }
+  box.replaceChildren(
+    h('div', { class: 'detail-stage', onclick: e => { if (e.target === e.currentTarget) closeDetail(); } }, stage,
+      idx > 0 && h('button', { type: 'button', class: 'detail-nav prev', 'aria-label': 'Vorige', onclick: () => go(-1) }, '‹'),
+      idx > -1 && idx < lastVisible.length - 1 && h('button', { type: 'button', class: 'detail-nav next', 'aria-label': 'Volgende', onclick: () => go(1) }, '›')),
+    panel);
   box.hidden = false;
 }
 function closeDetail() {
@@ -835,6 +848,7 @@ const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] 
 const unit = v => { const n = Math.sqrt(dot(v, v)) || 1, o = new Float32Array(v.length); for (let i = 0; i < v.length; i++) o[i] = v[i] / n; return o; };
 function aiStatus(t) { AI.status = t; renderAi(); }
 function renderAi() {
+  $('#busy').textContent = AI.status || '';
   const el = $('#ai'); if (!el) return;
   const n = libItems().filter(i => AI.embs.has(i.id)).length;
   el.replaceChildren(h('span', { text: AI.status || (AI.on ? 'AI-zoeken aan · ' + n + (n === 1 ? ' beeld' : ' beelden') + ' geïndexeerd' : 'AI-zoeken uit') }),
@@ -933,7 +947,7 @@ function openCaptureHelp() {
   const step = (n, t) => h('li', null, h('b', { text: n + ' ' }), t);
   openPanel('Bewaren vanuit je browser', 'Met de extensie bewaar je een beeld zonder de pagina te verlaten: rechtsklik op het beeld en kies "Bewaar beeld in Collector", of houd Alt (⌥) ingedrukt en klik erop. De knop in de werkbalk laat je kiezen uit alle beelden van de pagina.',
     h('div', { class: 'extbox' },
-      h('a', { class: 'btn primary', href: 'downloads/collector-extensie.zip', download: '' }, 'Extensie downloaden'),
+      h('a', { class: 'btn primary', href: EXT_URL, target: '_blank', rel: 'noopener' }, 'Extensie downloaden'),
       h('div', { class: 'extcols' },
         h('div', null, h('h4', { text: 'Zen en Firefox' }), h('ol', null,
           step('1.', 'Pak het zip-bestand uit.'), step('2.', 'Open about:debugging en kies "Deze Firefox" (in Zen: "Deze Zen").'),
@@ -987,6 +1001,73 @@ function initExtensionBridge() {
     window.postMessage({ type: 'collector-ext-done', id: d.id, ok }, location.origin);
   });
   document.documentElement.dataset.collectorReady = '1';
+}
+
+// ---------- Openingsscherm: logo, naam en een begroeting in een willekeurige taal ----------
+const GREETINGS = [
+  ['nl', 'Nederlands', 'Goedemorgen', 'Goedemiddag', 'Goedenavond'], ['en', 'Engels', 'Good morning', 'Good afternoon', 'Good evening'],
+  ['fy', 'Fries', 'Goeie moarn', 'Goeie middei', 'Goeie jûn'], ['fr', 'Frans', 'Bonjour', 'Bon après-midi', 'Bonsoir'],
+  ['de', 'Duits', 'Guten Morgen', 'Guten Tag', 'Guten Abend'], ['es', 'Spaans', 'Buenos días', 'Buenas tardes', 'Buenas noches'],
+  ['it', 'Italiaans', 'Buongiorno', 'Buon pomeriggio', 'Buonasera'], ['pt', 'Portugees', 'Bom dia', 'Boa tarde', 'Boa noite'],
+  ['sv', 'Zweeds', 'God morgon', 'God eftermiddag', 'God kväll'], ['da', 'Deens', 'Godmorgen', 'God eftermiddag', 'God aften'],
+  ['nb', 'Noors', 'God morgen', 'God ettermiddag', 'God kveld'], ['fi', 'Fins', 'Hyvää huomenta', 'Hyvää iltapäivää', 'Hyvää iltaa'],
+  ['is', 'IJslands', 'Góðan daginn', 'Góðan daginn', 'Gott kvöld'], ['pl', 'Pools', 'Dzień dobry', 'Dzień dobry', 'Dobry wieczór'],
+  ['tr', 'Turks', 'Günaydın', 'İyi günler', 'İyi akşamlar'], ['el', 'Grieks', 'Καλημέρα', 'Καλό απόγευμα', 'Καλησπέρα'],
+  ['ja', 'Japans', 'おはよう', 'こんにちは', 'こんばんは'], ['id', 'Indonesisch', 'Selamat pagi', 'Selamat siang', 'Selamat malam'],
+  ['sw', 'Swahili', 'Habari ya asubuhi', 'Habari ya mchana', 'Habari ya jioni'], ['haw', 'Hawaïaans', 'Aloha kakahiaka', 'Aloha ʻauinalā', 'Aloha ahiahi'],
+];
+/** Kiest een begroeting die past bij het uur van de dag, in een willekeurige taal. */
+function pickGreeting(now = new Date(), rand = Math.random()) {
+  const hr = now.getHours(), part = hr >= 5 && hr < 12 ? 2 : hr >= 12 && hr < 18 ? 3 : 4;
+  const g = GREETINGS[Math.floor(rand * GREETINGS.length) % GREETINGS.length];
+  const own = (navigator.language || 'nl').toLowerCase().split('-')[0];
+  return { text: g[part], lang: g[1], foreign: g[0] !== own && !(g[0] === 'nb' && own === 'no') };
+}
+/** Typt de begroeting, laat het scherm een seconde staan en veegt het dan naar beneden weg. */
+function runSplash() {
+  const el = $('#splash'); if (!el) return Promise.resolve();
+  const g = pickGreeting(), out = $('#splashHi'), lang = $('#splashLang');
+  const finish = () => new Promise(res => {
+    el.classList.add('weg');
+    setTimeout(() => { el.remove(); res(); }, calm.matches ? 200 : 620);
+  });
+  return new Promise(res => {
+    let i = 0; const chars = [...g.text];
+    const type = () => {
+      out.textContent = chars.slice(0, ++i).join('');
+      if (i < chars.length) return setTimeout(type, calm.matches ? 0 : 42);
+      if (g.foreign) { lang.textContent = g.lang; lang.classList.add('in'); }
+      setTimeout(() => finish().then(res), 1000);
+    };
+    setTimeout(type, 260);
+  });
+}
+
+// ---------- Eerste keer: korte uitleg ----------
+function openOnboarding() {
+  const app = window.collectorApp, box = $('#onboard'); let step = 0;
+  const key = (k, label, text) => h('div', { class: 'ob-key' }, h('kbd', { text: k }), h('div', null, h('strong', { text: label }), h('span', { text: text })));
+  const pages = [
+    () => [h('h2', { text: 'Welkom bij Collector' }),
+      h('p', { text: 'Een plek voor alles wat je mooi vindt. Je beelden blijven gewone bestanden in een map op je eigen Mac:' }),
+      h('div', { class: 'set-path', id: 'obPath', text: DB.info ? DB.info.library : '' }),
+      app ? h('div', { class: 'ob-row' }, h('button', { type: 'button', class: 'btn small', onclick: async () => { if (await app.chooseLibrary()) { DB.info = await (await DB.call('GET', 'info')).json(); $('#obPath').textContent = DB.info.library; } } }, 'Kies een andere map…'), h('span', { class: 'set-help', text: 'Later wijzigen kan altijd in Instellingen.' })) : null],
+    () => [h('h2', { text: 'Drie toetsen' }), h('p', { text: 'Beweeg over een beeld en druk op een toets.' }),
+      h('div', { class: 'ob-keys' }, key('L', 'Love', 'Zet een hartje. Je favorieten staan apart.'), key('C', 'Collect', 'Het beeld vliegt naar je verzameling linksonder. Daar maak je er een collectie van.'), key('␣', 'Spatie', 'Bekijk het beeld groot, zonder iets te openen.'))],
+    () => [h('h2', { text: 'Begin met verzamelen' }),
+      h('p', { text: 'Sleep beelden in dit venster, plak ze met ⌘V, of zet ze in de map Beelden. Met de browserextensie bewaar je een beeld vanaf elke website met ⌥-klik.' }),
+      h('div', { class: 'ob-row' }, h('button', { type: 'button', class: 'btn primary', onclick: () => { done(); $('#file').click(); } }, 'Bestanden kiezen'), h('button', { type: 'button', class: 'btn', onclick: () => { done(); addSamples(); } }, 'Eerst voorbeelden bekijken'))],
+  ];
+  const done = () => { box.hidden = true; box.replaceChildren(); if (app && app.setOnboarded) app.setOnboarded(); adoptNew(); renderAll(); };
+  const draw = () => {
+    box.replaceChildren(h('div', { class: 'ob-card' },
+      h('div', { class: 'ob-body' }, pages[step]()),
+      h('div', { class: 'ob-foot' },
+        h('div', { class: 'ob-dots' }, pages.map((_, i) => h('span', { class: i === step ? 'on' : '' }))),
+        h('button', { type: 'button', class: 'btn-text', onclick: done }, 'Overslaan'),
+        step < pages.length - 1 ? h('button', { type: 'button', class: 'btn primary', id: 'obNext', onclick: () => { step++; draw(); } }, 'Volgende') : h('button', { type: 'button', class: 'btn', id: 'obNext', onclick: done }, 'Klaar'))));
+  };
+  box.hidden = false; draw();
 }
 
 // ---------- Herontdekken ----------
@@ -1146,8 +1227,14 @@ function editNote(n, el) {
 function selectNodes(ids) {
   sp.sel = new Set(ids);
   for (const [id, el] of sp.els) el.classList.toggle('sel', sp.sel.has(id));
+  // precies één beeld geselecteerd: toon de gegevens in het zwevende venster
+  const only = sp.sel.size === 1 && sp.space ? sp.space.nodes.find(n => sp.sel.has(n.id)) : null;
+  const item = only && only.item ? only.item : null;
+  if (item === (sp.infoId || null)) return;
+  if (item) openDetail(item, 'canvas'); else { sp.infoId = null; $('#spInfo').replaceChildren(); }
 }
 function renderSpace() {
+  sp.infoId = null; $('#spInfo').replaceChildren();
   const s = sp.space = state.cols.find(x => x.id === state.view.id && x.lib === state.libId);
   if (!s) return setView({ kind: 'collections' });
   const first = !s.cam;
@@ -1724,6 +1811,8 @@ async function adoptNew() {
   } catch (e) { console.warn(e); }
   finally { adopting = false; }
 }
+const SHOP = 'https://dev.patrickloonstra.nl/collector/#kopen';
+const EXT_URL = 'https://github.com/patrickloonstra/collector/releases/latest/download/Collector-extensie.zip';
 let updState = null, settingsDraw = null;
 function updText(st) {
   if (!st) return '';
@@ -1741,7 +1830,7 @@ function initUpdates() {
   upd.onState(st => {
     updState = st;
     if (settingsDraw && document.querySelector('.settings')) settingsDraw(st);
-    const pill = $('#updPill'); pill.hidden = st.status !== 'ready';
+    const pill = $('#updPill'); pill.hidden = st.status !== 'ready'; $('#gearBadge').hidden = st.status !== 'ready';
     if (st.status === 'ready') { pill.textContent = 'Versie ' + st.version + ' klaar · herstart'; if (!told) { told = true; toast('Collector ' + st.version + ' staat klaar. Herstart om bij te werken.', 6000); } }
   });
   $('#updPill').onclick = () => upd.restart();
@@ -1754,8 +1843,11 @@ function openSettings() {
   if (DB.http) body.append(row('Bibliotheekmap',
     h('div', { class: 'set-path', text: info.library }),
     h('p', { class: 'set-help', text: 'Hier staan je beelden als gewone bestanden, in de map Beelden. Kies een andere map om je bibliotheek ergens anders te bewaren, bijvoorbeeld op een netwerkschijf. Een andere map kiezen verplaatst niets: je begint daar een eigen bibliotheek, of opent de bibliotheek die er al staat.' }),
+    h('p', { class: 'set-help', text: nItems(libItems().length) + ' · ' + fmtSize(libItems().reduce((t, i) => t + (i.size || 0), 0)) + ' in deze bibliotheek' + (trashItems().length ? ', ' + nItems(trashItems().length) + ' in de prullenbak' : '') + '.' }),
+    h('div', { class: 'set-actions' },
+      app && btn('Toon in Finder', () => app.showLibrary()),
+      trashItems().length ? btn('Prullenbak legen', () => { close(); emptyTrash(); }) : null),
     app && h('div', { class: 'set-actions' },
-      btn('Toon in Finder', () => app.showLibrary()),
       btn('Kies andere map…', async () => { if (await app.chooseLibrary()) location.reload(); }),
       info.defaultLibrary && info.library !== info.defaultLibrary && btn('Terug naar standaardmap', async () => { if (await app.resetLibrary()) location.reload(); }))));
   const n = libItems().filter(i => AI.embs.has(i.id)).length;
@@ -1780,6 +1872,15 @@ function openSettings() {
       upd && status, upd && h('label', { class: 'set-check' }, auto, ' Updates automatisch downloaden en installeren'), upd ? acts : null));
     if (upd) { settingsDraw = draw; upd.get().then(draw); }
   }
+  body.append(row('Browserextensie',
+    h('p', { class: 'set-help', style: { margin: 0 }, text: 'Bewaar een beeld vanaf elke website zonder de pagina te verlaten: rechtsklik op het beeld, of houd ⌥ ingedrukt en klik. Voor Zen, Firefox, Chrome, Arc, Brave en Edge.' }),
+    h('div', { class: 'set-actions' }, h('a', { class: 'btn small', href: EXT_URL, target: '_blank', rel: 'noopener', style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', marginLeft: 0 } }, 'Extensie downloaden'), btn('Zo installeer je hem', () => { close(); openCaptureHelp(); }))));
+  body.append(row('Over Collector',
+    h('div', { class: 'about' }, h('img', { src: 'assets/icon.svg', alt: '' }),
+      h('div', null, h('div', null, 'Gemaakt door ', h('a', { href: 'https://patrickloonstra.nl', target: '_blank', rel: 'noopener' }, 'Patrick Loonstra')),
+        h('div', { class: 'set-help', style: { margin: '2px 0 0' }, text: 'Collector kost € 9, eenmalig. Je kunt hem eerst 7 dagen proberen.' }))),
+    h('div', { class: 'set-actions' }, h('a', { class: 'btn small', href: SHOP, target: '_blank', rel: 'noopener', style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', marginLeft: 0 } }, 'Collector kopen'),
+      h('a', { class: 'btn small', href: SHOP.replace(/#.*$/, ''), target: '_blank', rel: 'noopener', style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', marginLeft: 0 } }, 'Website'))));
   const close = openPanel('Instellingen', '', body);
 }
 function initLibraryInfo() {
@@ -1977,8 +2078,12 @@ async function start() {
   for (const [id, e] of await DB.entries('embs')) AI.embs.set(id, e);
   initEvents(); initSpaceEvents(); initDragDrop(); initWave(); initWall(); renderAll();
   initExtensionBridge();
-  initLibraryInfo(); adoptNew();
+  initLibraryInfo();
+  const first = !!(DB.info && DB.info.firstRun);
+  const splash = runSplash();
+  if (!first) adoptNew();
   await handleCapture();
+  splash.then(() => { if (first) openOnboarding(); });
   if (meta.ai) aiEnable();
 }
 start();

@@ -76,7 +76,8 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed+
   // verwijderen: eerst prullenbak in de app, daarna naar de map Prullenbak; nooit definitief weg
   await p.click('.card[aria-label="Uit Finder"]', { modifiers: ['Control'] }); await p.click('#selbar >> text=Verwijderen'); await p.waitForTimeout(400);
   ok(fs.existsSync(path.join(beelden, 'Uit Finder.jpg')), 'in de prullenbak van de app: bestand staat nog in Beelden/');
-  await p.click('#storage button'); await p.click('#dlg button.primary'); await p.waitForTimeout(700);
+  await p.click('#nav >> text=Prullenbak'); await p.click('#filters >> text=Prullenbak legen'); await p.click('#dlg button.primary'); await p.waitForTimeout(700);
+  await p.click('#nav >> text=Alles'); await p.waitForSelector('.card');
   ok(!fs.existsSync(path.join(beelden, 'Uit Finder.jpg')) && fs.existsSync(path.join(bak, 'Uit Finder.jpg')), 'prullenbak legen: bestand verhuist naar de map Prullenbak/');
 
   // dubbele naam krijgt een volgnummer, niets wordt overschreven
@@ -102,7 +103,6 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed+
   ok(await get('api/capture', { method: 'POST', headers: { ...ext, Origin: 'https://kwaad.example' }, body: JSON.stringify({ dataUrl }) }) === 403, 'een gewone website mag niets afleveren');
   ok(await get('api/capture', { method: 'POST', headers: ext, body: JSON.stringify({ page: 'https://voorbeeld.nl/artikel', title: 'Artikel' }) }) === 200, 'extensie levert een link af');
   await p.waitForFunction(() => document.querySelectorAll('.card').length === 9, null, { timeout: 30000 }); ok(true, 'de link verschijnt vanzelf in de app');
-  await p.click('#storage button').catch(() => {});
 
   // andere map kiezen (zoals een NAS): nieuwe lege bibliotheek, oude blijft intact
   const nas = path.join(tmp, 'NAS', 'Collector');

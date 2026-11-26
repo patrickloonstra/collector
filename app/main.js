@@ -31,7 +31,7 @@ function log(text) {
 }
 process.on('uncaughtException', e => log('Onverwachte fout: ' + (e.stack || e)));
 process.on('unhandledRejection', e => log('Onverwachte fout: ' + (e && e.stack || e)));
-const info = () => ({ version: app.getVersion(), build: buildInfo.build || null, defaultLibrary: defaultLibrary() });
+const info = () => ({ version: app.getVersion(), build: buildInfo.build || null, defaultLibrary: defaultLibrary(), firstRun: !readConfig().onboarded && !SMOKE && !UPDATE_TEST });
 const showLog = () => { if (!fs.existsSync(logFile())) fs.writeFileSync(logFile(), ''); shell.showItemInFolder(logFile()); };
 const openSettings = () => { if (!win) createWindow(); win.show(); win.webContents.send('open-settings'); };
 
@@ -67,7 +67,7 @@ async function boot() {
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1360, height: 880, minWidth: 720, minHeight: 480, title: 'Collector', backgroundColor: '#ffffff', show: !SMOKE && !UPDATE_TEST,
+    width: 1360, height: 880, minWidth: 720, minHeight: 480, title: 'Collector', backgroundColor: '#ffffff', ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 16 } } : {}), show: !SMOKE && !UPDATE_TEST,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   // Links naar buiten openen in je gewone browser, nooit in het app-venster.
@@ -80,6 +80,7 @@ function createWindow() {
 
 ipcMain.handle('show-library', () => shell.openPath(server.state.library.dir));
 ipcMain.handle('show-log', () => showLog());
+ipcMain.handle('set-onboarded', () => { writeConfig({ ...readConfig(), onboarded: true }); });
 // ----- bijwerken -----
 const autoUpdate = () => readConfig().autoUpdate !== false;
 const updateInfo = () => ({ ...updater.state, auto: autoUpdate(), blocked: updater.target().error || '' });
