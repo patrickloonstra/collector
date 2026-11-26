@@ -1672,6 +1672,7 @@ function kmItems(q) {
   for (const c of libCols()) add(c.name, 'Collectie', () => setView(colView(c)));
   for (const c of ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc1', '#1e88e5', '#8e24aa', '#ec407a', '#795548', '#111111', '#9e9e9e', '#ffffff']) add('Kleur: ' + colorName(rgbOf(c)), 'Zoek op kleur', () => setColor(c));
   add('Volledig scherm', 'Actie · F', toggleFullscreen);
+  if (isGreeting(q)) out.unshift({ label: '…', hint: '', run: greetBack });
   if (q) {
     for (const [t] of tagCounts()) if (t.includes(q)) out.push({ label: '#' + t, hint: 'Tag', run: () => setView({ kind: 'tag', tag: t }) });
     for (const it of libItems()) { const name = it.title || (it.type === 'note' ? (it.text || '').slice(0, 60) : domainOf(it.source || '')); if (name && (name + ' ' + (it.source || '')).toLowerCase().includes(q)) out.push({ label: name, hint: it.type === 'note' ? 'Notitie' : it.type === 'link' ? 'Link' : 'Beeld', run: () => openDetail(it.id) }); if (out.length > 40) break; }
@@ -1696,6 +1697,30 @@ function openKm() {
   box.replaceChildren(h('div', { class: 'km-box' }, input, list)); box.hidden = false;
   box.onclick = e => { if (e.target === box) closeKm(); };
   km.idx = 0; draw(); input.focus();
+}
+/** Wie de app teruggroet in het snelmenu, krijgt een groet terug. Staat nergens in de uitleg. */
+const plain = t => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+function isGreeting(q) {
+  q = plain(q); if (q.length < 2) return false;
+  return ['hallo', 'hoi', 'hello', 'hi', 'hey', 'dag', 'aloha', 'moin', 'salut', 'ciao', 'hola'].includes(q) || GREETINGS.some(g => g.slice(2).some(t => plain(t) === q));
+}
+function greetBack() {
+  const g = pickGreeting();
+  const el = h('div', { class: 'egg-hi', 'aria-live': 'polite' }, h('span', { text: g.text }), h('small', { text: g.lang }));
+  document.body.append(el);
+  setTimeout(() => el.classList.add('weg'), 2200); setTimeout(() => el.remove(), 2900);
+  if (calm.matches) return;
+  const tiles = [...document.querySelectorAll('.wtile, .card')].filter(t => { const r = t.getBoundingClientRect(); return r.width && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; }).sort(() => Math.random() - 0.5).slice(0, 18);
+  tiles.forEach((t, i) => setTimeout(() => {
+    const r = t.getBoundingClientRect(), heart = h('div', { class: 'heart-float', text: '♥' });
+    Object.assign(heart.style, { left: (r.left + r.width / 2) + 'px', top: (r.top + r.height / 2) + 'px', fontSize: '40px' });
+    document.body.append(heart);
+    const sway = (Math.random() < 0.5 ? -1 : 1) * 16;
+    heart.animate([
+      { transform: 'translate(-50%,-50%) scale(.3)', opacity: 0 },
+      { transform: 'translate(calc(-50% + ' + sway + 'px), calc(-50% - 40px)) scale(1.1)', opacity: 1, offset: 0.3 },
+      { transform: 'translate(calc(-50% - ' + sway + 'px), calc(-50% - 120px)) scale(.9)', opacity: 0 }], { duration: 1200, easing: 'cubic-bezier(.2,.6,.3,1)' }).onfinish = () => heart.remove();
+  }, 120 + i * 70));
 }
 function closeKm() { km.open = false; $('#km').hidden = true; $('#km').replaceChildren(); }
 async function newNote() {

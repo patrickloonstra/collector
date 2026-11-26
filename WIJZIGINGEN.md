@@ -2,6 +2,10 @@
 
 Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelichting bij de release.
 
+## 0.1.7
+
+- Er zit iets verstopt in de app. Wat en waar staat hier niet.
+
 ## 0.1.6
 
 - Rustiger vormgeving: de kleine labels in hoofdletters zijn gewone woorden geworden of verdwenen (zijbalk, infovenster, menu's, meldingen).
