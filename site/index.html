@@ -26,22 +26,20 @@
 
 <main id="top">
   <section class="hero">
-    <div class="pattern" aria-hidden="true"></div>
-    <div class="hero-in">
-      <img class="hero-icon" src="assets/icon.svg" alt="" width="112" height="112">
-      <h1>Een thuis voor alles<br>wat je <em>mooi</em> vindt.</h1>
-      <p class="lead">Collector is een Mac-app voor ontwerpers. Je verzamelt beelden met één toets, vindt ze terug op kleur of onderwerp, en komt ze weer tegen in een wand die zacht voorbij drijft.</p>
+    <div class="hero-art"><div class="pattern" aria-hidden="true"></div><img src="assets/icon.svg" alt=""></div>
+    <div class="hero-text">
+      <h1>Een thuis voor alles wat je mooi vindt</h1>
+      <p class="lead">Collector is een Mac-app voor ontwerpers. Je bewaart een beeld met één toets, vindt het terug op kleur of onderwerp, en komt het weer tegen in een wand van je eigen beelden die langzaam voorbij drijft.</p>
       <div class="cta">
         <a class="btn dark" href="__DMG__">Download voor Mac</a>
         <a class="btn" href="#demo">Probeer de demo</a>
       </div>
-      <p class="fine">7 dagen proberen · daarna € 9, eenmalig · voor Macs met een Apple-chip (M1 en nieuwer)</p>
+      <p class="fine">7 dagen proberen, daarna € 9 eenmalig. Voor Macs met een Apple-chip (M1 en nieuwer).</p>
     </div>
   </section>
 
   <section class="demo" id="demo">
-    <div class="window">
-      <div class="window-bar"><span></span><span></span><span></span><b>Collector · demo in je browser</b></div>
+    <div class="frame">
       <iframe src="demo/" title="Demo van Collector" loading="lazy"></iframe>
       <img class="demo-fallback" src="media/collector.gif" alt="De ontdekwand van Collector: beelden drijven voorbij, een beeld krijgt een hartje en drie beelden vliegen naar de waaier linksonder." loading="lazy">
     </div>
@@ -49,33 +47,33 @@
   </section>
 
   <section class="what" id="wat">
-    <h2>Verzamelen moet <em>licht</em> voelen.</h2>
-    <div class="cards">
-      <article><h3>Ontdekken</h3><p>De app opent niet in een lijst maar in een eindeloze wand van je eigen beelden. Je komt weer tegen wat je vergeten was.</p></article>
-      <article><h3>Verzamelen met één toets</h3><p>Druk op <kbd>C</kbd> en het beeld vliegt naar een waaier onderin. Daar maak je er een collectie van, of je legt alles op een vrij canvas.</p></article>
-      <article><h3>Terugvinden</h3><p>Zoek op titel, tag, notitie of bron. Elk beeld krijgt vanzelf tags voor kleur en vorm. Zoeken op kleur zit in het snelmenu.</p></article>
-      <article><h3>Van het web, zonder omweg</h3><p>Met de browserextensie bewaar je een beeld met rechtsklik of <kbd>⌥</kbd>-klik. De pagina waar het vandaan komt wordt als bron bewaard.</p></article>
-      <article><h3>Je bestanden blijven van jou</h3><p>Alles staat als gewone bestanden in een map die jij kiest, op je Mac of op een netwerkschijf. Geen account, geen cloud.</p></article>
-      <article><h3>Klaar voor je AI-assistent</h3><p>Claude, Cursor en andere agents kunnen via MCP in je bibliotheek zoeken. Het blijft op je eigen Mac.</p></article>
-    </div>
+    <h2>Wat Collector doet</h2>
+    <dl>
+      <div><dt>Ontdekken</dt><dd>De app opent in een eindeloze wand van je eigen beelden, niet in een lijst. Zo zie je terug wat je vergeten was.</dd></div>
+      <div><dt>Verzamelen</dt><dd>Druk op <kbd>C</kbd> en het beeld vliegt naar een waaier onderin. Daar maak je er een collectie van, of je legt alles op een vrij canvas.</dd></div>
+      <div><dt>Terugvinden</dt><dd>Zoek op titel, tag, notitie of bron. Elk beeld krijgt vanzelf tags voor kleur en vorm, en je kunt op kleur zoeken.</dd></div>
+      <div><dt>Bewaren vanaf het web</dt><dd>Met de browserextensie bewaar je een beeld met rechtsklik of <kbd>⌥</kbd>-klik. De pagina waar het vandaan komt wordt als bron bewaard.</dd></div>
+      <div><dt>Werken met Claude of Cursor</dt><dd>Een AI-assistent kan via MCP in je bibliotheek zoeken. Dat gebeurt op je eigen Mac; er gaat niets naar buiten.</dd></div>
+    </dl>
   </section>
 
   <section class="keys">
-    <h2>Vijf toetsen, meer hoef je niet te onthouden.</h2>
-    <ul>
-      <li><kbd>L</kbd><b>Love</b><span>een hartje op het beeld onder je muis</span></li>
-      <li><kbd>C</kbd><b>Collect</b><span>naar je verzameling</span></li>
-      <li><kbd>␣</kbd><b>Spatie</b><span>snel groot bekijken</span></li>
-      <li><kbd>F</kbd><b>Volledig scherm</b><span>alleen jij en je beelden</span></li>
-      <li><kbd>⌘K</kbd><b>Snelmenu</b><span>alles, ook zoeken op kleur</span></li>
-    </ul>
+    <h2>Sneltoetsen</h2>
+    <dl>
+      <div><dt><kbd>L</kbd></dt><dd>Love: een hartje op het beeld onder je muis</dd></div>
+      <div><dt><kbd>C</kbd></dt><dd>Collect: het beeld gaat naar je verzameling</dd></div>
+      <div><dt><kbd>R</kbd></dt><dd>Weggooien: het beeld gaat naar de prullenbak en is daar terug te halen</dd></div>
+      <div><dt><kbd>Spatie</kbd></dt><dd>Het beeld groot bekijken zonder iets te openen</dd></div>
+      <div><dt><kbd>F</kbd></dt><dd>Volledig scherm</dd></div>
+      <div><dt><kbd>⌘K</kbd></dt><dd>Snelmenu voor alles, ook zoeken op kleur</dd></div>
+    </dl>
   </section>
 
   <section class="files">
     <div>
-      <h2>Een gewone map. <em>Meer niet.</em></h2>
-      <p>Collector bewaart niets in een eigen formaat. Je beelden houden hun naam en staan in een map die je in Finder kunt openen, kopiëren en meenemen. Wat je verwijdert gaat naar een prullenbak in diezelfde map; er wordt nooit iets definitief gewist.</p>
-      <p>Zet je zelf een bestand in de map, dan verschijnt het in de app.</p>
+      <h2>Je beelden staan in een gewone map</h2>
+      <p>Collector gebruikt geen eigen formaat. Je beelden houden hun naam en staan in een map die je in Finder kunt openen, kopiëren en meenemen, op je Mac of op een netwerkschijf. Zet je zelf een bestand in die map, dan verschijnt het in de app.</p>
+      <p>Wat je weggooit gaat naar een prullenbak in dezelfde map. De app wist nooit iets definitief.</p>
     </div>
     <pre aria-label="Opbouw van de bibliotheekmap">Afbeeldingen/Collector/
   Beelden/         je bestanden
@@ -84,26 +82,17 @@
   </section>
 
   <section class="price" id="kopen">
-    <div class="pattern" aria-hidden="true"></div>
-    <div class="price-card">
-      <p class="eyebrow">Prijs</p>
-      <p class="amount">€ 9</p>
-      <p class="once">eenmalig, geen abonnement</p>
-      <ol>
-        <li><span><b>Download en probeer 7 dagen.</b> Alles werkt, zonder account.</span></li>
-        <li><span><b>Bevalt het?</b> Stuur een bericht. Je krijgt een factuur van € 9.</span></li>
-        <li><span><b>Na betaling</b> ontvang je je code.</span></li>
-      </ol>
-      <div class="cta">
-        <a class="btn dark" href="__DMG__">Download voor Mac</a>
-        <a class="btn" href="__CONTACT__">Collector kopen</a>
-      </div>
-      <p class="fine">Updates komen vanzelf in de app. Je bibliotheek blijft altijd van jou, ook als je stopt.</p>
+    <h2>€ 9, eenmalig</h2>
+    <p>Je downloadt Collector en probeert hem 7 dagen. Alles werkt, zonder account. Bevalt het, stuur dan een bericht: je krijgt een factuur van € 9 en na betaling je code. Er is geen abonnement.</p>
+    <p>Updates komen vanzelf in de app. Je bibliotheek blijft van jou, ook als je stopt.</p>
+    <div class="cta">
+      <a class="btn dark" href="__DMG__">Download voor Mac</a>
+      <a class="btn" href="__CONTACT__">Collector kopen</a>
     </div>
   </section>
 
   <section class="faq">
-    <h2>Goed om te weten</h2>
+    <h2>Vragen</h2>
     <details><summary>macOS zegt dat de app niet geopend kan worden</summary><p>Collector is nog niet door Apple ondertekend. Open de eerste keer Systeeminstellingen &gt; Privacy en beveiliging, scrol naar beneden en klik "Open toch". Daarna start hij gewoon.</p></details>
     <details><summary>Werkt het op een Intel-Mac?</summary><p>Nee. Collector is er voor Macs met een Apple-chip: M1 en nieuwer.</p></details>
     <details><summary>Kan mijn bibliotheek op een netwerkschijf staan?</summary><p>Ja. Kies in Instellingen een andere map, bijvoorbeeld op je NAS. Miniaturen blijven op je Mac, zodat bladeren snel blijft.</p></details>

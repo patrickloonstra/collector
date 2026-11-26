@@ -24,7 +24,7 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 ## Vorm
 
 - De app opent in **Ontdek** (een eindeloze, drijvende wand, `wall*` in `ui/app.js`), niet in een lijst. Raster is de tweede keuze.
-- Sneltoetsen op het beeld onder de muis: L love, C collect (naar de verzamelbak linksonder, `bak*`), spatie voorbeeld, F volledig scherm, ⌘K snelmenu.
+- Sneltoetsen op het beeld onder de muis (of het geopende beeld): L love, C collect (naar de verzamelbak linksonder, `bak*`), R weggooien naar de prullenbak, spatie voorbeeld. Verder F volledig scherm, H herontdekken, ⌘K snelmenu.
 - Geen kleurbolletjes in de zijbalk; zoeken op kleur zit in het snelmenu.
 - Beweging hoort erbij, maar respecteer `prefers-reduced-motion` (`calm`).
 - Elke start: een kort openingsscherm (logo, naam, getypte begroeting in een willekeurige taal, krabbelpatroon) dat naar beneden wegveegt. Alleen de allereerste keer volgt de uitleg in drie stappen (`onboarded` in de app-instellingen).
@@ -40,6 +40,18 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 - Icoon: een handgeschreven C in heel donkergroen (`#062b1e`) op wit, `build/icon.svg`. Krabbelpatroon in dezelfde kleur: `build/krabbels.js`.
 - `node build/dmg-background.js` tekent de achtergrond van het installatievenster opnieuw.
 - `python3 docs/maak-voorbeelden.py <map>` en daarna `node docs/maak-media.js <map>` maken de kop en de bewegende schermopname voor de README opnieuw. Doe dat na een zichtbare wijziging aan de vorm. Gebruik in de openbare repo alleen eigen voorbeeldbeelden, nooit werk van anderen.
+
+## Wat we niet doen in de vormgeving
+
+De gebruiker is ontwerper en herkent standaardoplossingen meteen. Vermijd in de app en op de website:
+
+- één woord in een kop cursief of in een andere letter zetten als accent;
+- kleine labels in hoofdletters met extra letterafstand boven koppen, velden of blokken;
+- rijen identieke kaartjes met een kopje en twee regels tekst;
+- genummerde bolletjes, nepvensters met drie stippen, knoppen die bij aanwijzen omhoog zweven, schaduwen en glas waar een lijn volstaat;
+- korte slagzinnen in twee delen ("Een gewone map. Meer niet.") en koppen die iets beloven in plaats van benoemen.
+
+Schrijf koppen als gewone zinnen of gewone namen. De app gebruikt één lettertype (Instrument Sans), met alleen in de begroeting op het openingsscherm een schreefletter. De website volgt op verzoek van de gebruiker de stijl van hey.pi.ai: crème achtergrond (`#FAF3EA`), bijna zwarte tekst, donkergroen, grote rustige koppen in normale dikte, ronde donkere knoppen, en één letter voor alles (Fraunces, vrij te gebruiken; Pi zelf gebruikt het betaalde Grenette Pro).
 
 ## Valkuilen die al eens misgingen
 

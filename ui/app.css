@@ -680,3 +680,20 @@ html[data-shell="mac"] .top { padding-top: 12px; }
 .splash-hi::after { width: 2px; height: .82em; margin-left: 4px; vertical-align: -.06em; }
 .splash-lang { margin-top: 12px; font-size: 11.5px; }
 .menu.big .colrow.on::after { display: none; }
+
+/* ---------- 0.1.6: geen labeltjes in hoofdletters; kopjes zijn gewone woorden ---------- */
+.nav h2, .nav h2 .foldbtn, .field label, .field .lbl, .menu .mhead, .note-kind, .splash-lang { text-transform: none; letter-spacing: 0; }
+.nav h2, .nav h2 .foldbtn { font-size: 12.5px; font-weight: 500; }
+.field label, .field .lbl { font-size: 12.5px; font-weight: 500; margin-bottom: 5px; }
+.menu .mhead { font-size: 12.5px; font-weight: 500; padding: 6px 10px 6px; }
+.note-kind { font-size: 12px; }
+.note-head { min-height: 0; }
+.note-head:has(.note-kind:empty) { float: right; }
+.splash-lang { font-size: 13px; }
+.splash-lang.in { opacity: .55; }
+.linkcard { justify-content: flex-end; }
+
+.heart-float { position: fixed; z-index: 150; pointer-events: none; color: #ff3b5c; line-height: 1; text-shadow: 0 6px 22px rgba(255,59,92,.35); }
+.detail-head .like { color: var(--line-strong); font-size: 17px; }
+.detail-head .like:hover { color: #ff3b5c; }
+.detail-head .like.on { color: #ff3b5c; }

@@ -72,9 +72,9 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   ok(await p.isVisible('#spInfo .title-input') && await p.$eval('#detail', e => e.hidden), 'klik op een beeld op het canvas: zwevend infovenster rechts, het canvas blijft bruikbaar');
   await shot('6-canvas');
   const hgt = () => p.$eval('#spInfo .detail-panel', e => e.getBoundingClientRect().height);
-  const h0 = await hgt(); await p.click('#spInfo .detail-head .icon-btn >> nth=0'); await p.waitForTimeout(200); const h1 = await hgt();
+  const h0 = await hgt(); await p.click('#spInfo .detail-head .icon-btn[title="In- of uitklappen"]'); await p.waitForTimeout(200); const h1 = await hgt();
   ok(h1 < h0 / 3, 'het infovenster is in te klappen (' + Math.round(h0) + ' → ' + Math.round(h1) + ' px)');
-  await p.click('#spInfo .detail-head .icon-btn >> nth=0');
+  await p.click('#spInfo .detail-head .icon-btn[title="In- of uitklappen"]');
   await p.mouse.click(300, 700); await p.waitForTimeout(200); ok(await p.$('#spInfo .detail-panel') === null, 'klik naast het beeld sluit het infovenster');
   await p.click('#nav >> text=Alles'); await p.waitForSelector('.wtile');
   // rechtsklik op een beeld: ruim menu om aan een collectie toe te voegen
@@ -99,7 +99,23 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   ok(await p.$eval('.wtile', e => e.offsetWidth) >= tw0, 'zoomen met + werkt op de wand');
   await p.selectOption('#sort', 'shuffle'); await p.waitForTimeout(300); ok(await p.$$eval('.wtile', e => e.length) > 0, 'sorteren op Willekeurig');
   // klik opent het beeld; Tags zijn ingeklapt; kleur zoeken via het snelmenu
-  await p.mouse.click(820, 430); await p.waitForSelector('.detail-panel'); ok(true, 'klik op een tegel opent het beeld'); await p.waitForTimeout(400); await shot('7-beeld'); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+  await p.mouse.click(820, 430); await p.waitForSelector('.detail-panel'); ok(true, 'klik op een tegel opent het beeld'); await p.waitForTimeout(400);
+  // Love werkt ook als het beeld groot open staat, met een hartje dat omhoog dwarrelt
+  const was = await p.$eval('.detail-panel .like', e => e.classList.contains('on'));
+  if (was) { await p.keyboard.press('l'); await p.waitForTimeout(200); }
+  await p.keyboard.press('l'); await p.waitForTimeout(250);
+  ok(await p.$$eval('.heart-float', e => e.length) === 1 && await p.$eval('.detail-panel .like', e => e.classList.contains('on')), 'L bij een geopend beeld: hartje dwarrelt omhoog en het hartje in het infovenster staat aan');
+  await shot('7-beeld'); await p.waitForTimeout(1200);
+  ok(await p.$$eval('.heart-float', e => e.length) === 0 && await p.$$eval('.field .lbl, .field label', e => e.every(x => getComputedStyle(x).textTransform === 'none')), 'het hartje verdwijnt weer; kopjes in het infovenster zijn gewone woorden, geen hoofdletters');
+  // R gooit het geopende beeld weg, naar de prullenbak
+  const t0 = +(await p.textContent('#nav .nav-item:has-text("Prullenbak") .count'));
+  await p.keyboard.press('r'); await p.waitForTimeout(500);
+  ok(await p.$eval('#detail', e => e.hidden) && +(await p.textContent('#nav .nav-item:has-text("Prullenbak") .count')) === t0 + 1, 'R gooit het geopende beeld weg: het staat in de prullenbak');
+  await p.mouse.move(820, 430); await p.waitForTimeout(300); await p.keyboard.press('r'); await p.waitForTimeout(500);
+  ok(+(await p.textContent('#nav .nav-item:has-text("Prullenbak") .count')) === t0 + 2, 'R op het beeld onder de muis gooit dat weg');
+  await p.click('#nav >> text=Prullenbak'); await p.waitForSelector('.card'); await p.click('.card >> nth=0'); await p.click('.card >> nth=1'); await p.click('#selbar >> text=Terugzetten'); await p.waitForTimeout(400);
+  ok(+(await p.textContent('#nav .nav-item:has-text("Prullenbak") .count')) === t0, 'en uit de prullenbak haal je ze gewoon terug');
+  await p.click('#nav >> text=Alles'); await p.click('#mode >> text=Ontdek'); await p.waitForSelector('.wtile'); await p.waitForTimeout(300);
   ok(await p.$$eval('#nav .auto-dot', e => e.length) === 0, 'tags zijn ingeklapt');
   await p.click('.foldbtn'); await p.waitForTimeout(150); ok(await p.$$eval('#nav .auto-dot', e => e.length) > 0, 'klik op Tags klapt ze uit');
   await p.keyboard.press('Control+k'); await p.keyboard.type('kleur: blauw'); await p.keyboard.press('Enter'); await p.waitForTimeout(500);

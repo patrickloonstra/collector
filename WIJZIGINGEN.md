@@ -2,6 +2,13 @@
 
 Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelichting bij de release.
 
+## 0.1.6
+
+- Rustiger vormgeving: de kleine labels in hoofdletters zijn gewone woorden geworden of verdwenen (zijbalk, infovenster, menu's, meldingen).
+- Linkkaarten hebben geen etiket "Link" meer; het infovenster toont het kleurpalet zonder kopje.
+- **R gooit weg:** beweeg over een beeld (of open het) en druk op R. Het gaat naar de prullenbak en is daar altijd terug te halen. Herontdekken zit nu onder H.
+- **Love is zichtbaar:** bij L dwarrelt er een hartje omhoog, ook als het beeld groot open staat. In het infovenster staat een hartje dat laat zien of het een favoriet is.
+
 ## 0.1.5
 
 - **Meldingen:** linksonder verschijnen kaartjes als er een update klaarstaat of als er nieuws is. Zijn er meer, dan liggen ze gestapeld achter elkaar. Je klikt ze weg met het kruisje; alles blijft terug te lezen in Instellingen > Nieuws.

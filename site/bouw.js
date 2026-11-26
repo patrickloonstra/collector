@@ -28,7 +28,7 @@ cp(path.join(__dirname, 'site.css'), path.join(out, 'site.css'));
 cp(path.join(__dirname, 'nieuws.json'), path.join(out, 'nieuws.json'));
 cp(path.join(root, 'ui', 'assets', 'icon.svg'), path.join(out, 'assets', 'icon.svg'));
 cp(path.join(root, 'ui', 'assets', 'krabbels.svg'), path.join(out, 'assets', 'krabbels.svg'));
-for (const w of [400, 500, 600]) cp(path.join(root, 'ui', 'assets', 'fonts', `instrument-sans-latin-${w}-normal.woff2`), path.join(out, 'assets', 'fonts', `instrument-sans-latin-${w}-normal.woff2`));
+cp(path.join(__dirname, 'fonts'), path.join(out, 'fonts'));
 cp(path.join(root, 'docs', 'kop.png'), path.join(out, 'media', 'kop.png'));
 cp(path.join(root, 'docs', 'collector.gif'), path.join(out, 'media', 'collector.gif'));
 fs.writeFileSync(path.join(out, '.htaccess'), '# Nog niet vindbaar voor zoekmachines zolang dit op het dev-adres staat.\n<IfModule mod_headers.c>\n  Header set X-Robots-Tag "noindex, nofollow, noimageindex, noarchive"\n  <FilesMatch "\\.(html|js|css|json)$">\n    Header set Cache-Control "no-cache"\n  </FilesMatch>\n</IfModule>\n');
@@ -60,7 +60,7 @@ fs.writeFileSync(path.join(out, 'wijzigingen', 'index.html'), fill(`<!doctype ht
 <title>Wat is er nieuw · Collector</title><meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="../assets/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../site.css"><base href="../"></head><body>
 <header class="nav"><a class="brand" href="./"><img src="assets/icon.svg" alt="" width="26" height="26"><span>Collector</span></a><nav aria-label="Pagina"><a href="./#demo">Demo</a><a href="./#kopen">Prijs</a></nav><a class="btn dark small" href="__DMG__">Download</a></header>
-<main class="log"><h1>Wat is er <em>nieuw</em></h1><p class="lead">Collector werkt zichzelf bij. Hier lees je wat er per versie veranderde.</p>
+<main class="log"><h1>Wat is er nieuw</h1><p class="lead">Collector werkt zichzelf bij. Hier lees je wat er per versie veranderde.</p>
 ${log}
 </main><footer><p>Gemaakt door <a href="https://patrickloonstra.nl">Patrick Loonstra</a></p><p class="fine">Versie __VERSION__ · gepubliceerd __PUBDATE__ · bron __COMMIT__</p></footer></body></html>`));
 const size = d => fs.readdirSync(d, { withFileTypes: true }).reduce((t, e) => t + (e.isDirectory() ? size(path.join(d, e.name)) : fs.statSync(path.join(d, e.name)).size), 0);

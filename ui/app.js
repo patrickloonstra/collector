@@ -555,7 +555,6 @@ function libMenu() {
 function linkCard(it) {
   if (it.type === 'note') return h('div', { class: 'linkcard notecard' }, h('div', { class: 'notetext', text: it.text || '' }));
   return h('div', { class: 'linkcard' },
-    h('span', { class: 'badge', text: 'Link' }),
     h('div', null, h('div', { class: 'dom', text: it.title || domainOf(it.url) || it.url }), h('div', { class: 'ttl', text: it.url })));
 }
 function thumbEl(it) {
@@ -803,7 +802,7 @@ function openDetail(id, mode) {
   };
   drawTags();
 
-  const pal = it.palette && it.palette.length ? h('div', { class: 'field' }, h('span', { class: 'lbl', text: 'Kleuren' }),
+  const pal = it.palette && it.palette.length ? h('div', { class: 'field' },
     h('div', { class: 'palette' }, it.palette.map(p => h('button', { type: 'button', 'data-hex': p.hex, 'aria-label': 'Zoek op ' + p.hex, style: { background: p.hex, flex: p.pct + ' 0 0' }, onclick: () => { shut(); setColor(p.hex); } }))),
     h('div', { class: 'hexes' }, it.palette.map(p => h('button', { type: 'button', title: 'Kopieer', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(p.hex).then(() => toast(p.hex + ' gekopieerd'), () => toast(p.hex)); } }, p.hex)))) : null;
 
@@ -820,8 +819,9 @@ function openDetail(id, mode) {
 
   const panel = h('div', { class: 'detail-panel' + (infoMin ? ' min' : '') },
       h('div', { class: 'detail-head' },
-        h('span', { class: 'pos', text: idx > -1 ? (idx + 1) + ' van ' + lastVisible.length : onCanvas ? 'Op het canvas' : '' }),
+        h('span', { class: 'pos', text: idx > -1 ? (idx + 1) + ' van ' + lastVisible.length : '' }),
         h('span', { class: 'ttl', text: it.title || (it.type === 'note' ? 'Notitie' : it.type === 'link' ? domainOf(it.url) : 'Beeld') }),
+        h('button', { type: 'button', class: 'icon-btn like' + (it.liked ? ' on' : ''), 'data-id': it.id, title: 'Love (L)', 'aria-label': 'Love', 'aria-pressed': it.liked ? 'true' : 'false', onclick: () => toggleLike(it.id) }, '♥'),
         h('button', { type: 'button', class: 'icon-btn', title: 'In- of uitklappen', 'aria-label': 'Infovenster in- of uitklappen', onclick: () => { infoMin = !infoMin; panel.classList.toggle('min', infoMin); } }, '–'),
         h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Sluiten', onclick: shut }, '×')),
       h('div', { class: 'field' }, h('input', { type: 'text', class: 'title-input', value: it.title || '', placeholder: 'Titel', 'aria-label': 'Titel', oninput: e => { it.title = e.target.value; save(); } })),
@@ -1115,7 +1115,7 @@ function allNotes() {
 function noteCard(n, i, total) {
   const front = i === 0;
   const el = h('div', { class: 'note' + (front ? ' front' : ''), 'aria-hidden': front ? null : 'true' },
-    h('div', { class: 'note-head' }, h('span', { class: 'note-kind', text: n.kind + (front && total > 1 ? ' · 1 van ' + total : '') }),
+    h('div', { class: 'note-head' }, h('span', { class: 'note-kind', text: front && total > 1 ? '1 van ' + total : '' }),
       front && !n.sticky && h('button', { type: 'button', class: 'note-x', 'aria-label': 'Melding sluiten', title: 'Sluiten', onclick: () => dismissNote(n.id) }, '×')),
     h('strong', { text: n.title }), h('p', { text: n.text }),
     front && (n.action || n.link) && h('div', { class: 'note-acts' },
@@ -1607,11 +1607,38 @@ async function importAll(file) {
   toast(n + ' items teruggezet'); renderAll();
 }
 
+/** Gooit beelden weg: ze gaan naar de prullenbak en zijn daar altijd terug te halen. */
+async function trashIds(ids) {
+  const its = ids.map(id => state.items.find(i => i.id === id)).filter(i => i && !i.trashed); if (!its.length) return;
+  for (const it of its) { it.trashed = Date.now(); await DB.put('items', it); }
+  if (ql.id) closeQuickLook();
+  ql.hover = null; state.selected.clear();
+  toast(nItems(its.length) + ' naar de prullenbak');
+  if (detailId != null) closeDetail(); else renderAll();
+}
+/** Een hartje dat even omhoog dwarrelt, als bevestiging van Love. */
+function heartFloat(id) {
+  if (calm.matches) return;
+  const src = document.querySelector('.detail-stage > img, .detail-stage > .linkcard, .detail-stage > textarea, #ql .redo-stage > *') || document.querySelector('.wtile[data-id="' + id + '"]:hover, .card[data-id="' + id + '"]') || document.querySelector('.wtile[data-id="' + id + '"]');
+  if (!src) return;
+  const r = src.getBoundingClientRect(), big = r.width > 500;
+  const el = h('div', { class: 'heart-float', text: '♥' });
+  Object.assign(el.style, { left: (r.left + r.width / 2) + 'px', top: (r.top + r.height * (big ? 0.55 : 0.5)) + 'px', fontSize: (big ? 84 : 44) + 'px' });
+  document.body.append(el);
+  const up = big ? 190 : 110, sway = (Math.random() < 0.5 ? -1 : 1) * (big ? 26 : 16);
+  el.animate([
+    { transform: 'translate(-50%,-50%) scale(.3) rotate(0deg)', opacity: 0 },
+    { transform: 'translate(calc(-50% + ' + sway + 'px), calc(-50% - ' + up * 0.35 + 'px)) scale(1.1) rotate(' + sway / 3 + 'deg)', opacity: 1, offset: 0.3 },
+    { transform: 'translate(calc(-50% - ' + sway * 0.7 + 'px), calc(-50% - ' + up * 0.7 + 'px)) scale(1) rotate(' + -sway / 4 + 'deg)', opacity: 0.9, offset: 0.65 },
+    { transform: 'translate(calc(-50% + ' + sway * 0.4 + 'px), calc(-50% - ' + up + 'px)) scale(.9) rotate(0deg)', opacity: 0 }], { duration: 1100, easing: 'cubic-bezier(.2,.6,.3,1)' }).onfinish = () => el.remove();
+}
 async function toggleLike(id) {
   const it = state.items.find(i => i.id === id); if (!it) return;
   it.liked = !it.liked; await DB.put('items', it);
   for (const el of document.querySelectorAll('.card[data-id="' + id + '"] .heart, .wtile[data-id="' + id + '"] .heart')) { el.classList.toggle('on', it.liked); if (it.liked) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); } }
-  if (state.view.kind === 'liked') renderGrid();
+  if (it.liked) heartFloat(id);
+  const hb = document.querySelector('.detail-panel .like[data-id="' + id + '"]'); if (hb) { hb.classList.toggle('on', it.liked); hb.setAttribute('aria-pressed', it.liked ? 'true' : 'false'); }
+  if (state.view.kind === 'liked' && detailId == null) renderGrid();
   renderSide();
 }
 
@@ -1638,7 +1665,7 @@ function kmItems(q) {
   add('Toevoegen: bestanden kiezen', 'Actie', () => $('#file').click());
   add('Nieuwe notitie', 'Actie · N', newNote);
   add('Nieuwe collectie', 'Actie', async () => { const c = await newCol(); if (c) setView({ kind: 'col', id: c.id }); });
-  add('Herontdek', 'Actie · R', rediscover);
+  add('Herontdek', 'Actie · H', rediscover);
   add(AI.on ? 'AI-zoeken uitzetten' : 'AI-zoeken aanzetten', 'Actie', () => AI.on ? aiDisable() : aiAsk());
   add('Bewaren vanuit je browser', 'Actie', openCaptureHelp);
   for (const [label, kind] of [['Ontdek', 'wall'], ['Alles', 'all'], ['Inbox', 'unsorted'], ['Favorieten', 'liked'], ['Bladwijzers', 'bookmarks'], ['Prullenbak', 'trash'], ['Collecties', 'collections']]) add(label, 'Ga naar', () => { if (kind === 'wall') { state.display = 'wall'; return setView({ kind: 'all' }); } setView({ kind }); });
@@ -2178,6 +2205,7 @@ function initEvents() {
         const ids = hoverTarget();
         if (ids.length) { e.preventDefault(); if (k === 'l') ids.forEach(toggleLike); else collect(ids); return; }
       }
+      if (!sp.space && k === 'r') { const ids = hoverTarget(); if (ids.length) { e.preventDefault(); return trashIds(ids); } }
     }
     if (ql.id) {
       const i = lastVisible.findIndex(x => x.id === ql.id);
@@ -2191,7 +2219,7 @@ function initEvents() {
       const id = ql.hover || (state.selected.size === 1 ? [...state.selected][0] : null);
       if (id) { e.preventDefault(); return quickLook(id); }
     }
-    if (redo.cur) { if (e.key === 'ArrowRight') rediscover(); return; }
+    if (redo.cur) { if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'h') rediscover(); return; }
     if (detailId != null) {
       const idx = lastVisible.findIndex(i => i.id === detailId);
       if (e.key === 'ArrowLeft' && lastVisible[idx - 1]) openDetail(lastVisible[idx - 1].id);
@@ -2199,7 +2227,7 @@ function initEvents() {
       return;
     }
     if (e.key === '/' && !sp.space) { e.preventDefault(); $('#q').focus(); }
-    if (e.key.toLowerCase() === 'r' && !e.metaKey && !e.ctrlKey && !sp.space) rediscover();
+    if (e.key.toLowerCase() === 'h' && !e.metaKey && !e.ctrlKey && !sp.space) rediscover();
     if (e.key.toLowerCase() === 'n' && !e.metaKey && !e.ctrlKey && !sp.space) { e.preventDefault(); newNote(); }
     if (!sp.space && (e.key === '+' || e.key === '=')) { e.preventDefault(); setSize(state.size * 1.15); }
     if (!sp.space && (e.key === '-' || e.key === '_')) { e.preventDefault(); setSize(state.size / 1.15); }
