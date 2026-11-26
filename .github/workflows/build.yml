@@ -37,6 +37,9 @@ jobs:
       - name: Test de gebouwde app via het echte venster (bestanden kiezen, slepen, instellingen)
         timeout-minutes: 5
         run: COLLECTOR_APP_BIN="$PWD/dist/mac-arm64/Collector.app/Contents/MacOS/Collector" node test/app.js
+      - name: Test het bijwerken op de Mac (oude versie werkt zichzelf bij naar een nieuwe)
+        timeout-minutes: 6
+        run: node test/update-mac.js dist/mac-arm64/Collector.app
       - name: Pak de browserextensie in
         run: cd extension && zip -q -r ../dist/Collector-extensie.zip .
       - uses: actions/upload-artifact@v4
@@ -44,14 +47,17 @@ jobs:
           name: Collector-mac
           path: |
             dist/*.dmg
-            dist/Collector-extensie.zip
+            dist/*.zip
           if-no-files-found: error
-      - name: Zet de build klaar als download
+      - name: Breng uit als de versie in package.json nieuw is
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           V=$(node -p "require('./package.json').version")
-          TAG="v$V-build${{ github.run_number }}"
-          gh release create "$TAG" dist/*.dmg dist/Collector-extensie.zip --prerelease --target "$GITHUB_SHA" \
-            --title "Collector $V (build ${{ github.run_number }})" \
-            --notes "Automatische build van \`${GITHUB_REF_NAME}\`. Voor een Mac met Apple-chip (M1 en nieuwer). Zie README voor de eerste keer openen."
+          if gh release view "v$V" >/dev/null 2>&1; then
+            echo "Versie $V is al uitgebracht. Verhoog de versie in package.json voor een nieuwe release."
+            exit 0
+          fi
+          awk '/^## /{n++} n==1 && !/^## /' WIJZIGINGEN.md > notes.md
+          gh release create "v$V" "dist/Collector-$V.dmg" "dist/Collector-$V.zip" dist/Collector-extensie.zip \
+            --target "$GITHUB_SHA" --title "Collector $V" --notes-file notes.md

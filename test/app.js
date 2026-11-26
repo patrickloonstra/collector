@@ -44,7 +44,7 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await app.evaluate(({ Menu }) => { const m = Menu.getApplicationMenu(); const find = items => { for (const i of items) { if (i.label === 'Instellingen…') return i; if (i.submenu) { const r = find(i.submenu.items); if (r) return r; } } }; find(m.items).click(); });
   await p.waitForSelector('.settings .set-path');
   ok((await p.textContent('.set-path')) === library, 'menu Instellingen opent het venster met de bibliotheekmap');
-  ok(await p.$$eval('.set-actions .btn', e => ['Toon in Finder', 'Kies andere map…', 'Zoek naar updates…', 'Toon logboek'].every(t => e.some(b => b.textContent === t))), 'knoppen: Finder, andere map, updates, logboek');
+  ok(await p.$$eval('.set-actions .btn', e => ['Toon in Finder', 'Kies andere map…', 'Zoek naar updates', 'Toon logboek'].every(t => e.some(b => b.textContent === t))), 'knoppen: Finder, andere map, updates, logboek');
   await p.screenshot({ path: path.join(os.tmpdir(), 'collector-instellingen.png') });
   await p.click('#dlg >> text=Sluiten');
   await p.keyboard.press('Control+,'); await p.waitForSelector('.settings'); ok(true, 'sneltoets opent de instellingen'); await p.click('#dlg >> text=Sluiten');

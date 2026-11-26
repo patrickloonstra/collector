@@ -4,15 +4,17 @@ const { app, BrowserWindow, dialog, shell, ipcMain, Menu } = require('electron')
 const fs = require('fs');
 const path = require('path');
 const { start } = require('../server/server');
+const { Updater } = require('./updater');
 
 const SMOKE = process.env.COLLECTOR_SMOKE === '1';
+const UPDATE_TEST = process.env.COLLECTOR_UPDATE_TEST === '1'; // alleen voor de automatische test van de updater
 if (process.env.COLLECTOR_USERDATA) app.setPath('userData', process.env.COLLECTOR_USERDATA);
 const configFile = () => path.join(app.getPath('userData'), 'config.json');
 const readConfig = () => { try { return JSON.parse(fs.readFileSync(configFile(), 'utf8')); } catch { return {}; } };
 const writeConfig = c => { fs.mkdirSync(path.dirname(configFile()), { recursive: true }); fs.writeFileSync(configFile(), JSON.stringify(c, null, 1)); };
 const defaultLibrary = () => path.join(app.getPath('pictures'), 'Collector');
 
-let server = null, win = null;
+let server = null, win = null, updater = null;
 const RELEASES = 'https://github.com/patrickloonstra/collector/releases';
 const buildInfo = (() => { try { return require('./build.json'); } catch { return {}; } })();
 
@@ -65,7 +67,7 @@ async function boot() {
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1360, height: 880, minWidth: 720, minHeight: 480, title: 'Collector', backgroundColor: '#ffffff', show: !SMOKE,
+    width: 1360, height: 880, minWidth: 720, minHeight: 480, title: 'Collector', backgroundColor: '#ffffff', show: !SMOKE && !UPDATE_TEST,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   // Links naar buiten openen in je gewone browser, nooit in het app-venster.
@@ -78,7 +80,22 @@ function createWindow() {
 
 ipcMain.handle('show-library', () => shell.openPath(server.state.library.dir));
 ipcMain.handle('show-log', () => showLog());
-ipcMain.handle('check-updates', () => shell.openExternal(RELEASES));
+// ----- bijwerken -----
+const autoUpdate = () => readConfig().autoUpdate !== false;
+const updateInfo = () => ({ ...updater.state, auto: autoUpdate(), blocked: updater.target().error || '' });
+/** Kijkt of er een nieuwere versie is en zet die, als automatisch bijwerken aan staat, meteen klaar. */
+async function checkForUpdates(andDownload = autoUpdate()) {
+  if (!updater) return null;
+  await updater.check();
+  if (andDownload && updater.state.status === 'available' && !updater.target().error) await updater.download();
+  return updateInfo();
+}
+ipcMain.handle('update-get', () => updateInfo());
+ipcMain.handle('update-check', () => checkForUpdates());
+ipcMain.handle('update-download', async () => { await updater.download(); return updateInfo(); });
+ipcMain.handle('update-restart', () => { if (updater.installOnQuit(true)) { app.quit(); return true; } return false; });
+ipcMain.handle('update-set-auto', (e, on) => { writeConfig({ ...readConfig(), autoUpdate: !!on }); return updateInfo(); });
+ipcMain.handle('toggle-fullscreen', () => { if (win) win.setFullScreen(!win.isFullScreen()); });
 ipcMain.handle('reset-library', async () => {
   try { await server.switchLibrary(defaultLibrary()); } catch (e) { dialog.showErrorBox('De standaardmap kan niet gebruikt worden', defaultLibrary() + '\n\n' + e.message); return false; }
   writeConfig({ ...readConfig(), library: server.state.library.dir });
@@ -88,7 +105,7 @@ ipcMain.handle('reset-library', async () => {
 function buildMenu() {
   const mac = process.platform === 'darwin';
   const settings = { label: 'Instellingen…', accelerator: 'CmdOrCtrl+,', click: openSettings };
-  const updates = { label: 'Zoek naar updates…', click: () => shell.openExternal(RELEASES) };
+  const updates = { label: 'Zoek naar updates…', click: () => { openSettings(); checkForUpdates(); } };
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(mac ? [{ label: app.name, submenu: [{ role: 'about' }, { type: 'separator' }, settings, updates, { type: 'separator' }, { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] }]
       : [{ label: 'Bestand', submenu: [settings, updates, { type: 'separator' }, { role: 'quit' }] }]),
@@ -131,15 +148,30 @@ else {
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
   app.whenReady().then(async () => {
     if (!await boot()) return;
+    updater = new Updater({ log, currentVersion: process.env.COLLECTOR_FAKE_VERSION || app.getVersion() });
+    updater.onChange(() => { if (win && !win.isDestroyed()) win.webContents.send('update-state', updateInfo()); });
     buildMenu();
     createWindow();
+    if (UPDATE_TEST) { // zelftest: zoek, download, zet klaar en vervang de app bij het afsluiten
+      await checkForUpdates(true);
+      console.log('UPDATE TEST status: ' + updater.state.status + ' ' + (updater.state.version || '') + ' ' + (updater.state.message || updater.target().error || ''));
+      const done = updater.installOnQuit(false);
+      await server.close(); app.exit(done ? 0 : 1);
+      return;
+    }
     if (SMOKE) {
       try { await smoke(); await server.close(); app.exit(0); }
       catch (e) { console.error('SMOKE FAIL ' + e.message); app.exit(1); }
       return;
     }
     app.on('activate', () => { if (!win) createWindow(); });
+    // Bij elke start kijken of er een nieuwere versie is, en daarna elke zes uur.
+    setTimeout(() => checkForUpdates().catch(() => {}), 4000);
+    setInterval(() => checkForUpdates().catch(() => {}), 6 * 3600 * 1000);
   });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-  app.on('before-quit', () => { if (server) server.state.library.flush().catch(() => {}); });
+  app.on('before-quit', () => {
+    if (server) server.state.library.flush().catch(() => {});
+    if (updater && updater.state.status === 'ready') updater.installOnQuit(false); // staat er een update klaar, dan installeren we die bij het afsluiten
+  });
 }

@@ -466,3 +466,7 @@ body.dragging .nav-item[data-drop] { outline: 1px dashed var(--line-strong); out
 .set-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .set-actions .btn.small { margin-left: 0; }
 @media (max-width: 820px) { .set-row { grid-template-columns: 1fr; gap: 6px; } }
+
+.set-check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
+.set-check input { accent-color: var(--ink); }
+.btn-text.upd { display: block; margin-top: 6px; color: var(--accent); text-decoration-color: var(--accent); }

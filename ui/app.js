@@ -1544,6 +1544,28 @@ async function adoptNew() {
   } catch (e) { console.warn(e); }
   finally { adopting = false; }
 }
+let updState = null, settingsDraw = null;
+function updText(st) {
+  if (!st) return '';
+  if (st.status === 'checking') return 'Zoeken naar updates…';
+  if (st.status === 'none') return 'Je hebt de nieuwste versie.';
+  if (st.status === 'available') return 'Versie ' + st.version + ' is beschikbaar.' + (st.blocked ? ' ' + st.blocked : '');
+  if (st.status === 'downloading') return 'Versie ' + st.version + ' downloaden… ' + st.progress + '%';
+  if (st.status === 'ready') return 'Versie ' + st.version + ' staat klaar en wordt geïnstalleerd als je Collector afsluit.';
+  if (st.status === 'error') return st.message;
+  return '';
+}
+function initUpdates() {
+  const upd = window.collectorApp && window.collectorApp.update; if (!upd) return;
+  let told = false;
+  upd.onState(st => {
+    updState = st;
+    if (settingsDraw && document.querySelector('.settings')) settingsDraw(st);
+    const pill = $('#updPill'); pill.hidden = st.status !== 'ready';
+    if (st.status === 'ready') { pill.textContent = 'Versie ' + st.version + ' klaar · herstart'; if (!told) { told = true; toast('Collector ' + st.version + ' staat klaar. Herstart om bij te werken.', 6000); } }
+  });
+  $('#updPill').onclick = () => upd.restart();
+}
 function openSettings() {
   const app = window.collectorApp, info = DB.info || {};
   const row = (label, ...kids) => h('div', { class: 'set-row' }, h('div', { class: 'set-label', text: label }), h('div', { class: 'set-body' }, kids));
@@ -1563,10 +1585,21 @@ function openSettings() {
   body.append(row('Back-up',
     h('p', { class: 'set-help', text: DB.http ? 'Je bibliotheekmap is zelf je back-up: kopieer de hele map. Daarnaast kun je alles in één bestand bewaren.' : 'Bewaar alles in één bestand, of zet zo\'n bestand terug.' }),
     h('div', { class: 'set-actions' }, btn('Back-up maken', () => { close(); exportAll(); }), btn('Terugzetten…', () => { close(); $('#fileImport').click(); }))));
-  if (DB.http) body.append(row('Versie',
-    h('div', { text: 'Collector ' + (info.version || '') + (info.build ? ' (build ' + info.build + ')' : '') }),
-    app && h('p', { class: 'set-help', text: 'Een nieuwe versie installeer je door het nieuwe bestand te downloaden en Collector in Programma\'s te vervangen. Je bibliotheek blijft daarbij staan.' }),
-    app && h('div', { class: 'set-actions' }, btn('Zoek naar updates…', () => app.checkUpdates()), btn('Toon logboek', () => app.showLog()))));
+  if (DB.http) {
+    const upd = app && app.update, status = h('p', { class: 'set-help' }), acts = h('div', { class: 'set-actions' });
+    const auto = h('input', { type: 'checkbox', id: 'setAuto', onchange: async e => draw(await upd.setAuto(e.target.checked)) });
+    const draw = st => {
+      updState = st; auto.checked = st.auto;
+      status.textContent = updText(st) || 'Collector kijkt bij elke start of er een nieuwere versie is.';
+      acts.replaceChildren(
+        st.status === 'ready' ? btn('Herstart en werk bij', () => upd.restart()) : st.status === 'available' && !st.blocked ? btn('Downloaden en installeren', async () => draw(await upd.download())) : btn('Zoek naar updates', async () => { status.textContent = 'Zoeken…'; draw(await upd.check()); }),
+        btn('Toon logboek', () => app.showLog()));
+    };
+    body.append(row('Versie',
+      h('div', { text: 'Collector ' + (info.version || '') + (info.build ? ' (build ' + info.build + ')' : '') }),
+      upd && status, upd && h('label', { class: 'set-check' }, auto, ' Updates automatisch downloaden en installeren'), upd ? acts : null));
+    if (upd) { settingsDraw = draw; upd.get().then(draw); }
+  }
   const close = openPanel('Instellingen', '', body);
 }
 function initLibraryInfo() {
@@ -1577,6 +1610,7 @@ function initLibraryInfo() {
   const parts = DB.info.library.split(/[\\/]/).filter(Boolean);
   where.replaceChildren(h('span', { class: 'libpath', title: DB.info.library, text: (parts.length > 2 ? '…/' : '') + parts.slice(-2).join('/') }));
   if (app && app.onOpenSettings) app.onOpenSettings(openSettings);
+  initUpdates();
   if (DB.info.version) $('#appver').textContent = 'Collector ' + DB.info.version + (DB.info.build ? ' (build ' + DB.info.build + ')' : '');
   const checkOutside = async () => {
     try { const info = await (await DB.call('GET', 'info')).json(); if (info.rev !== DB.info.rev) return location.reload(); } catch (e) { /* motor even weg */ }
