@@ -28,7 +28,7 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 
 ## Uitbrengen
 
-Elke push bouwt via GitHub Actions een `.dmg` voor Apple Silicon en Intel en zet die als prerelease onder Releases. Er is geen Apple Developer-account: de app is alleen lokaal ("ad hoc") ondertekend (`build/adhoc-sign.js`), dus de gebruiker moet hem de eerste keer via Systeeminstellingen > Privacy en beveiliging openen. Automatisch bijwerken kan daardoor nog niet op de standaardmanier.
+Elke push bouwt via GitHub Actions een `.dmg` voor Apple Silicon (bewust geen Intel-versie) en zet die als prerelease onder Releases. Er is geen Apple Developer-account: de app is alleen lokaal ("ad hoc") ondertekend (`build/adhoc-sign.js`), dus de gebruiker moet hem de eerste keer via Systeeminstellingen > Privacy en beveiliging openen. Automatisch bijwerken kan daardoor nog niet op de standaardmanier.
 
 ## Het webprototype
 

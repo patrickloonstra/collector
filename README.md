@@ -19,7 +19,7 @@ Collector/
 
 ## Installeren
 
-1. Ga naar [Releases](../../releases) en download het nieuwste `.dmg`: `arm64` voor een Mac met Apple-chip (M1 en nieuwer), `x64` voor een Intel-Mac.
+1. Ga naar [Releases](../../releases) en download het nieuwste `.dmg`. De app is er alleen voor Macs met een Apple-chip (M1 en nieuwer).
 2. Open het bestand en sleep Collector naar Programma's.
 3. De app is niet door Apple ondertekend. De eerste keer weigert macOS hem te openen. Ga naar Systeeminstellingen > Privacy en beveiliging, scrol naar beneden en klik "Open toch". Daarna start hij gewoon.
 

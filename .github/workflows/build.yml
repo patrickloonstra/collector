@@ -25,7 +25,7 @@ jobs:
         run: node test/mcp.js
       - name: Zet het buildnummer in de app
         run: echo '{"build":${{ github.run_number }},"sha":"${{ github.sha }}"}' > app/build.json
-      - name: Bouw de app (Apple Silicon en Intel)
+      - name: Bouw de app (Apple Silicon)
         run: npm run dist
       - name: Zelftest van de gebouwde app op een Mac
         timeout-minutes: 3
@@ -54,4 +54,4 @@ jobs:
           TAG="v$V-build${{ github.run_number }}"
           gh release create "$TAG" dist/*.dmg dist/Collector-extensie.zip --prerelease --target "$GITHUB_SHA" \
             --title "Collector $V (build ${{ github.run_number }})" \
-            --notes "Automatische build van \`${GITHUB_REF_NAME}\`. Kies het arm64-bestand voor een Mac met Apple-chip (M1 en nieuwer), x64 voor een Intel-Mac. Zie README voor de eerste keer openen."
+            --notes "Automatische build van \`${GITHUB_REF_NAME}\`. Voor een Mac met Apple-chip (M1 en nieuwer). Zie README voor de eerste keer openen."
