@@ -40,7 +40,7 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 
 Elke push bouwt en test de app via GitHub Actions op een Mac (Apple Silicon, bewust geen Intel-versie). Een release komt er alleen als de versie in `package.json` nog niet is uitgebracht: verhoog voor elke release het laatste cijfer (0.1.1, 0.1.2, ...), ook in `package-lock.json`, en zet bovenaan `WIJZIGINGEN.md` wat er nieuw is, in gewone taal. De release bevat `Collector-<versie>.dmg` (eerste installatie), `Collector-<versie>.zip` (waarmee de app zichzelf bijwerkt, zie `app/updater.js`) en de extensie.
 
-De app kan zichzelf alleen bijwerken als de repo openbaar is: hij leest de lijst met releases zonder in te loggen. Er is geen Apple Developer-account: de app is alleen lokaal ("ad hoc") ondertekend (`build/adhoc-sign.js`), dus de gebruiker moet hem de eerste keer via Systeeminstellingen > Privacy en beveiliging openen. Automatisch bijwerken kan daardoor nog niet op de standaardmanier.
+De repo is openbaar, en dat moet zo blijven: de app leest de lijst met releases zonder in te loggen om zichzelf bij te werken. Zet dus nooit geheimen in deze repo. Er is geen Apple Developer-account: de app is alleen lokaal ("ad hoc") ondertekend (`build/adhoc-sign.js`), dus de gebruiker moet hem de eerste keer via Systeeminstellingen > Privacy en beveiliging openen. Automatisch bijwerken kan daardoor nog niet op de standaardmanier.
 
 ## Het webprototype
 

@@ -2,6 +2,11 @@
 
 Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelichting bij de release.
 
+## 0.1.2
+
+- De balk onderin maakt plaats zolang de waaier met verzamelde beelden open is, zodat ze niet meer over elkaar schuiven.
+- Eerste versie die via de app zelf binnenkomt: Collector werkt zichzelf vanaf 0.1.1 bij.
+
 ## 0.1.1
 
 - **Ontdek:** Collector opent in een eindeloze wand van je beelden die zacht drijft. Sleep om te bewegen, ⌘ + scrollen of + en − om te zoomen. Onderin wissel je tussen Ontdek, Raster en Collecties.

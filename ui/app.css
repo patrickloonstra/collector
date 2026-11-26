@@ -549,3 +549,7 @@ body.dragging .nav-item[data-drop] { outline: 1px dashed var(--line-strong); out
 .colstrip { width: 76px; height: 46px; }
 .colstrip img, .colstrip-empty { width: 46px; height: 46px; border-radius: 8px; }
 .colstrip > :nth-child(2) { left: 15px; } .colstrip > :nth-child(3) { left: 30px; }
+
+/* De balk onderin maakt plaats zolang de waaier open is. */
+.dock { transition: opacity .18s, translate .22s cubic-bezier(.2,.7,.2,1); }
+.view:has(.bak:hover) .dock, .view:has(.bak:focus-within) .dock { opacity: 0; translate: 0 12px; pointer-events: none; }
