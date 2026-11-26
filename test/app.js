@@ -15,6 +15,7 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   const p = await app.firstWindow();
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   await p.waitForSelector('.empty h2');
+  await p.click('#mode >> text=Raster');
   // 1. bestandskiezer
   await p.setInputFiles('#file', imgs.slice(0, 3));
   await p.waitForFunction(() => document.querySelectorAll('.card').length === 3, null, { timeout: 30000 }).catch(() => {});

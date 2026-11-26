@@ -54,9 +54,12 @@
         <div class="grid" id="grid"></div>
         <div class="empty" id="empty" hidden></div>
       </div>
+      <div class="wall" id="wall" hidden><div class="wall-world" id="wallWorld"></div></div>
+      <div class="bak" id="bak" hidden></div>
       <div class="selbar" id="selbar" hidden></div>
       <div class="dock" id="dock">
         <div class="mode" id="mode" role="group" aria-label="Weergave">
+          <button type="button" data-mode="wall">Ontdek</button>
           <button type="button" data-mode="library">Raster</button>
           <button type="button" data-mode="collections">Collecties</button>
         </div>
@@ -72,6 +75,7 @@
               <option value="old">Oudste eerst</option>
               <option value="title">Titel</option>
               <option value="color">Kleur</option>
+              <option value="shuffle">Willekeurig</option>
             </select>
           </label>
         </div>

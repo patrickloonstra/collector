@@ -119,6 +119,9 @@ const state = {
   q: '', color: null,
   selected: new Set(),
   size: 200, gap: 1, radius: 0,
+  display: 'wall',   // wall (Ontdek) of grid (Raster)
+  bak: [],           // verzamelbak: ids die je met C hebt opgepakt
+  tagsOpen: false,
 };
 const urls = { thumb: new Map(), full: new Map() };
 function blobUrl(kind, id) {
@@ -129,7 +132,7 @@ function blobUrl(kind, id) {
 function dropUrls(id) {
   for (const m of [urls.thumb, urls.full]) { const p = m.get(id); if (p) p.then(u => u && URL.revokeObjectURL(u)); m.delete(id); }
 }
-const saveMeta = () => DB.put('meta', { libId: state.libId, size3: state.size, gap: state.gap, radius: state.radius, sort: state.sort, ai: AI.on }, 'settings');
+const saveMeta = () => DB.put('meta', { libId: state.libId, size3: state.size, gap: state.gap, radius: state.radius, bak: state.bak, tagsOpen: state.tagsOpen, sort: state.sort, ai: AI.on }, 'settings');
 const libItems = () => state.items.filter(i => i.lib === state.libId && !i.trashed);
 const trashItems = () => state.items.filter(i => i.lib === state.libId && i.trashed);
 const libCols = () => state.cols.filter(c => c.lib === state.libId);
@@ -364,12 +367,15 @@ async function addSamples() {
 }
 
 // ---------- Filteren ----------
+const shuffleKeys = new Map();
+const shuffleKey = id => { if (!shuffleKeys.has(id)) shuffleKeys.set(id, Math.random()); return shuffleKeys.get(id); };
 function sortItems(a) {
   const key = i => { const p = i.palette && i.palette[0]; if (!p) return 1000; const c = hsl(rgbOf(p.hex)); return c[1] < 0.13 ? 500 + c[2] * 100 : c[0]; };
   a = a.slice();
   if (state.sort === 'old') a.sort((x, y) => x.created - y.created);
   else if (state.sort === 'title') a.sort((x, y) => (x.title || '\uffff').localeCompare(y.title || '\uffff', 'nl'));
   else if (state.sort === 'color') a.sort((x, y) => key(x) - key(y));
+  else if (state.sort === 'shuffle') a.sort((x, y) => shuffleKey(x.id) - shuffleKey(y.id));
   else a.sort((x, y) => y.created - x.created);
   return a;
 }
@@ -462,10 +468,16 @@ function dialog({ title, text, value, ok = 'Opslaan', danger, placeholder }) {
 }
 
 // ---------- Zijbalk ----------
+const calm = matchMedia('(prefers-reduced-motion: reduce)');
+/** Voert een schermwissel uit met een zachte overgang, waar de browser dat kan. */
+function smooth(fn) {
+  if (document.startViewTransition && !calm.matches && !document.hidden) { try { document.startViewTransition(fn); return; } catch (e) { /* dan zonder overgang */ } }
+  fn();
+}
 function setView(v) {
   state.view = v; state.selected.clear();
   $('#side').classList.remove('open');
-  renderAll();
+  smooth(renderAll);
 }
 function renderSide() {
   const lib = state.libs.find(l => l.id === state.libId);
@@ -480,25 +492,27 @@ function renderSide() {
     item('Favorieten', items.filter(i => i.liked).length, { kind: 'liked' }, v.kind === 'liked'),
     item('Prullenbak', trashItems().length, { kind: 'trash' }, v.kind === 'trash'),
     h('h2', null, 'Collecties', h('button', { type: 'button', title: 'Nieuwe collectie', 'aria-label': 'Nieuwe collectie', onclick: async () => { const c = await newCol(); if (c) setView({ kind: 'col', id: c.id }); } }, '+')),
-    ...(libCols().length ? libCols().map(c => item(c.name, colItems(c.id).length, colView(c), (v.kind === 'col' || v.kind === 'space') && v.id === c.id)) : [h('div', { class: 'nav-empty', text: 'Groepeer beelden per onderwerp, als raster of op een vrij canvas.' })]),
+    ...(libCols().length ? libCols().map(c => colRow(c, (v.kind === 'col' || v.kind === 'space') && v.id === c.id)) : [h('div', { class: 'nav-empty', text: 'Groepeer beelden per onderwerp, als raster of op een vrij canvas.' })]),
   );
 
-  nav.append(h('h2', null, 'Kleur'));
-  const sw = h('div', { class: 'swatches' });
-  for (const c of ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc1', '#1e88e5', '#8e24aa', '#ec407a', '#795548', '#111111', '#9e9e9e', '#ffffff'])
-    sw.append(h('button', { type: 'button', class: 'swatch', style: { background: c }, title: colorName(rgbOf(c)), 'aria-label': 'Zoek op ' + colorName(rgbOf(c)), 'aria-pressed': state.color === c ? 'true' : 'false', onclick: () => setColor(state.color === c ? null : c) }));
-  nav.append(sw);
-  nav.append(h('div', { style: { padding: '8px 8px 0' } }, h('label', { class: 'btn-text', style: { position: 'relative', cursor: 'pointer' } }, 'Eigen kleur kiezen',
-    h('input', { type: 'color', value: state.color || '#e8431f', style: { position: 'absolute', inset: 0, opacity: 0, width: '100%', cursor: 'pointer' }, oninput: e => setColor(e.target.value) }))));
-
-  nav.append(h('h2', null, 'Tags'));
   const tags = tagCounts();
-  if (!tags.length) nav.append(h('div', { class: 'nav-empty', text: 'Tags verschijnen zodra je iets toevoegt.' }));
-  for (const [t, e] of tags) nav.append(item(t, e.n, { kind: 'tag', tag: t }, v.kind === 'tag' && v.tag === t, !e.user && h('span', { class: 'auto-dot', title: 'Automatische tag' })));
+  nav.append(h('h2', { class: 'fold' }, h('button', { type: 'button', class: 'foldbtn', 'aria-expanded': state.tagsOpen ? 'true' : 'false', onclick: () => { state.tagsOpen = !state.tagsOpen; saveMeta(); renderSide(); } }, 'Tags', h('span', { class: 'foldn', text: tags.length || '' }))));
+  if (state.tagsOpen || v.kind === 'tag') {
+    if (!tags.length) nav.append(h('div', { class: 'nav-empty', text: 'Tags verschijnen zodra je iets toevoegt.' }));
+    for (const [t, e] of tags) nav.append(item(t, e.n, { kind: 'tag', tag: t }, v.kind === 'tag' && v.tag === t, !e.user && h('span', { class: 'auto-dot', title: 'Automatische tag' })));
+  }
 
   const bytes = a => a.reduce((t, i) => t + (i.size || 0), 0), tr = trashItems();
   $('#storage').replaceChildren(h('span', { text: nItems(items.length) + ' · ' + fmtSize(bytes(items)) + (DB.http ? ' in je map' : ' in deze browser') }));
   if (tr.length) $('#storage').append(h('button', { type: 'button', class: 'btn-text', title: 'Maakt ' + fmtSize(bytes(tr)) + ' vrij', onclick: emptyTrash }, 'Prullenbak legen (' + fmtSize(bytes(tr)) + ')'));
+}
+/** Een collectie in de zijbalk: de laatste beelden erbij, zodat je ziet wat erin zit. */
+function colRow(c, cur) {
+  const its = colItems(c.id), strip = h('span', { class: 'colstrip' });
+  for (const it of its.filter(visual).slice(0, 3)) strip.append(thumbEl(it));
+  if (!strip.children.length) strip.append(h('span', { class: 'colstrip-empty' }));
+  return h('button', { type: 'button', class: 'nav-item colrow', 'data-drop': 'col:' + c.id, 'aria-current': cur ? 'true' : null, onclick: () => setView(colView(c)) },
+    strip, h('span', { class: 'label', text: c.name }), h('span', { class: 'count', text: its.length }));
 }
 function setColor(c) {
   state.color = c;
@@ -594,8 +608,13 @@ function renderGrid() {
     if (AI.scores && AI.scores.has(it.id)) card.dataset.score = AI.scores.get(it.id).toFixed(3);
     grid.append(card);
   }
-  // Tabbladen bovenin
-  const mode = v.kind === 'collections' || v.kind === 'col' ? 'collections' : 'library';
+  // Ontdek (drijvende wand) of Raster
+  const useWall = state.display === 'wall' && !overview && v.kind !== 'trash' && list.length >= WALL_MIN && !state.selected.size;
+  $('#gridWrap').hidden = useWall; $('#wall').hidden = !useWall;
+  if (useWall) wallShow(list); else wallStop();
+  grid.querySelectorAll('.card').forEach((c, i) => { if (i < 36) c.style.setProperty('--i', i); });
+  // Tabbladen onderin
+  const mode = v.kind === 'collections' ? 'collections' : useWall ? 'wall' : 'library';
   for (const b of document.querySelectorAll('#mode button')) b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false');
   // Kop en actieve filters
   const f = $('#filters'), col = v.kind === 'col' && state.cols.find(c => c.id === v.id);
@@ -645,6 +664,7 @@ function renderGrid() {
   }
   renderSelbar();
   measureWave();
+  renderBak();
 }
 function renderSelbar() {
   const bar = $('#selbar'), n = state.selected.size;
@@ -1362,7 +1382,7 @@ async function importAll(file) {
 async function toggleLike(id) {
   const it = state.items.find(i => i.id === id); if (!it) return;
   it.liked = !it.liked; await DB.put('items', it);
-  const el = document.querySelector('.card[data-id="' + id + '"] .heart'); if (el) el.classList.toggle('on', it.liked);
+  for (const el of document.querySelectorAll('.card[data-id="' + id + '"] .heart, .wtile[data-id="' + id + '"] .heart')) { el.classList.toggle('on', it.liked); if (it.liked) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); } }
   if (state.view.kind === 'liked') renderGrid();
   renderSide();
 }
@@ -1393,8 +1413,10 @@ function kmItems(q) {
   add('Herontdek', 'Actie · R', rediscover);
   add(AI.on ? 'AI-zoeken uitzetten' : 'AI-zoeken aanzetten', 'Actie', () => AI.on ? aiDisable() : aiAsk());
   add('Bewaren vanuit je browser', 'Actie', openCaptureHelp);
-  for (const [label, kind] of [['Alles', 'all'], ['Inbox', 'unsorted'], ['Favorieten', 'liked'], ['Bladwijzers', 'bookmarks'], ['Prullenbak', 'trash'], ['Collecties', 'collections']]) add(label, 'Ga naar', () => setView({ kind }));
+  for (const [label, kind] of [['Ontdek', 'wall'], ['Alles', 'all'], ['Inbox', 'unsorted'], ['Favorieten', 'liked'], ['Bladwijzers', 'bookmarks'], ['Prullenbak', 'trash'], ['Collecties', 'collections']]) add(label, 'Ga naar', () => { if (kind === 'wall') { state.display = 'wall'; return setView({ kind: 'all' }); } setView({ kind }); });
   for (const c of libCols()) add(c.name, 'Collectie', () => setView(colView(c)));
+  for (const c of ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc1', '#1e88e5', '#8e24aa', '#ec407a', '#795548', '#111111', '#9e9e9e', '#ffffff']) add('Kleur: ' + colorName(rgbOf(c)), 'Zoek op kleur', () => setColor(c));
+  add('Volledig scherm', 'Actie · F', toggleFullscreen);
   if (q) {
     for (const [t] of tagCounts()) if (t.includes(q)) out.push({ label: '#' + t, hint: 'Tag', run: () => setView({ kind: 'tag', tag: t }) });
     for (const it of libItems()) { const name = it.title || (it.type === 'note' ? (it.text || '').slice(0, 60) : domainOf(it.source || '')); if (name && (name + ' ' + (it.source || '')).toLowerCase().includes(q)) out.push({ label: name, hint: it.type === 'note' ? 'Notitie' : it.type === 'link' ? 'Link' : 'Beeld', run: () => openDetail(it.id) }); if (out.length > 40) break; }
@@ -1439,6 +1461,163 @@ function openLook(anchor) {
   const r = anchor.getBoundingClientRect();
   m.style.left = clamp(r.left - 60, 8, innerWidth - m.offsetWidth - 8) + 'px'; m.style.top = Math.max(8, r.top - m.offsetHeight - 10) + 'px';
   setTimeout(() => document.addEventListener('pointerdown', menuAway, { once: true }), 0);
+}
+
+// ---------- Ontdek: een eindeloze wand die zacht drijft ----------
+const WALL_MIN = 6;
+const wall = { on: false, items: [], cols: [], W: 0, gap: 0, ox: 0, oy: 0, drift: 0, vx: 0, vy: 0, raf: 0, live: new Map(), drag: null, quiet: 0, over: false, speed: 0 };
+const mod = (a, n) => ((a % n) + n) % n;
+function wallLayout() {
+  const el = $('#wall'), vw = el.clientWidth; if (!vw) return;
+  let W = Math.round(state.size * 1.2), gap = Math.round((W * 0.09 + 8) * state.gap);
+  // Aantal kolommen volgt het aantal beelden: bij weinig beelden worden de tegels groter, zodat hetzelfde beeld niet steeds terugkomt.
+  const fit = Math.ceil(vw / (W + gap)) + 1, n = Math.max(3, Math.min(wall.items.length, Math.max(Math.round(Math.sqrt(wall.items.length * 1.6)), Math.min(fit, Math.round(wall.items.length / 4)))));
+  if (n < fit) { W = Math.ceil(vw / (n - 1)) - gap; gap = Math.round((W * 0.09 + 8) * state.gap); W = Math.ceil(vw / (n - 1)) - gap; }
+  wall.W = W; wall.gap = gap; wall.base = Math.round(state.size * 1.2);
+  wall.cols = Array.from({ length: n }, () => ({ h: 0, tiles: [] }));
+  for (const it of wall.items) {
+    const c = wall.cols.reduce((a, b) => b.h < a.h ? b : a), hh = Math.round(visual(it) ? W * (it.w ? it.h / it.w : 0.75) : W * 0.72);
+    c.tiles.push({ it, y: c.h, h: hh }); c.h += hh + gap;
+  }
+  for (const el2 of wall.live.values()) el2.remove();
+  wall.live.clear();
+}
+function wallTile(t) {
+  const it = t.it;
+  const el = h('button', { type: 'button', class: 'wtile', 'data-id': it.id, 'aria-label': it.title || (it.type === 'image' ? 'Afbeelding' : it.type === 'note' ? 'Notitie' : it.url) }, visual(it) ? thumbEl(it) : linkCard(it), h('span', { class: 'heart' + (it.liked ? ' on' : ''), text: '♥' }));
+  el.style.width = wall.W + 'px'; el.style.height = t.h + 'px';
+  return el;
+}
+function wallFrame() {
+  wall.raf = 0;
+  if (!wall.on) return;
+  const el = $('#wall'), vw = el.clientWidth, vh = el.clientHeight, step = wall.W + wall.gap, n = wall.cols.length;
+  // beweging: uitrollen na slepen, en zacht drijven als je niets doet
+  if (!wall.drag) { wall.ox += wall.vx; wall.oy += wall.vy; wall.vx *= 0.93; wall.vy *= 0.93; }
+  const idle = performance.now() - wall.quiet > 900 && !wall.drag && !wall.over && !calm.matches && detailId == null && !ql.id && !km.open;
+  wall.speed += ((idle ? 0.32 : 0) - wall.speed) * 0.04;
+  wall.drift += wall.speed;
+  const used = new Set(), world = $('#wallWorld');
+  for (let k = Math.floor(wall.ox / step) - 1; k * step - wall.ox < vw; k++) {
+    const col = wall.cols[mod(k, n)]; if (!col.h) continue;
+    const x = k * step - wall.ox, off = wall.oy + wall.drift * (1 + (mod(k, 3) - 1) * 0.35) + mod(k * 197, col.h);
+    const base = mod(off, col.h);
+    for (let i = 0; i < col.tiles.length; i++) {
+      const t = col.tiles[i], y0 = t.y - base;
+      for (let m = Math.floor((-t.h - 120 - y0) / col.h) + 1; y0 + m * col.h < vh + 120; m++) {
+        const key = k + '|' + m + '|' + i; used.add(key);
+        let node = wall.live.get(key);
+        if (!node) { node = wallTile(t); wall.live.set(key, node); world.append(node); }
+        node.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + (y0 + m * col.h).toFixed(1) + 'px,0)';
+      }
+    }
+  }
+  for (const [key, node] of wall.live) if (!used.has(key)) { node.remove(); wall.live.delete(key); }
+  wall.raf = requestAnimationFrame(wallFrame);
+}
+function wallShow(list) {
+  const same = wall.on && wall.items.length === list.length && wall.items.every((it, i) => it === list[i]) && wall.base === Math.round(state.size * 1.2);
+  wall.items = list; wall.on = true;
+  if (!same) wallLayout();
+  if (!wall.raf) wall.raf = requestAnimationFrame(wallFrame);
+}
+function wallStop() { wall.on = false; if (wall.raf) cancelAnimationFrame(wall.raf); wall.raf = 0; }
+function initWall() {
+  const el = $('#wall');
+  const touch = () => { wall.quiet = performance.now(); };
+  el.addEventListener('wheel', e => {
+    e.preventDefault(); touch();
+    if (e.ctrlKey || e.metaKey) { setSize(state.size * Math.exp(-clamp(e.deltaY, -30, 30) * 0.012)); return; }
+    wall.ox += e.deltaX; wall.oy += e.deltaY;
+  }, { passive: false });
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    touch(); wall.vx = wall.vy = 0;
+    const tile = e.target.closest('.wtile');
+    wall.drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false, id: tile ? tile.dataset.id : null, heart: e.target.classList.contains('heart'), alt: e.altKey, lx: 0, ly: 0 };
+    el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', e => {
+    touch();
+    const d = wall.drag;
+    if (!d) { const tile = e.target.closest && e.target.closest('.wtile'); ql.hover = tile ? tile.dataset.id : null; return; }
+    const dx = e.clientX - d.x, dy = e.clientY - d.y; d.x = e.clientX; d.y = e.clientY;
+    if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 5) { d.moved = true; el.classList.add('panning'); }
+    if (d.moved) { wall.ox -= dx; wall.oy -= dy; d.lx = -dx; d.ly = -dy; }
+  });
+  const up = e => {
+    const d = wall.drag; if (!d) return; wall.drag = null; el.classList.remove('panning'); touch();
+    if (d.moved) { wall.vx = clamp(d.lx, -60, 60); wall.vy = clamp(d.ly, -60, 60); return; }
+    if (!d.id || e.type === 'pointercancel') return;
+    if (d.heart || d.alt) toggleLike(d.id); else openDetail(d.id);
+  };
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  el.addEventListener('pointerenter', () => { wall.over = true; });
+  el.addEventListener('pointerleave', () => { wall.over = false; ql.hover = null; });
+  addEventListener('resize', debounce(() => { if (wall.on) wallLayout(); }, 150));
+}
+
+// ---------- Verzamelbak: met C pak je beelden op, onderin groeit een waaier ----------
+function hoverTarget() {
+  if (detailId != null) return [detailId];
+  if (ql.id) return [ql.id];
+  if (ql.hover) return [ql.hover];
+  return [...state.selected];
+}
+/** Laat een kopie van het beeld naar de verzamelbak vliegen. */
+function flyToBak(id) {
+  if (calm.matches) return;
+  const src = document.querySelector('.detail-stage img, #ql img') || document.querySelector('.wtile[data-id="' + id + '"]:hover img') || document.querySelector('.card[data-id="' + id + '"] img, .wtile[data-id="' + id + '"] img');
+  const dst = $('#bak'); if (!src || !src.src) return;
+  const a = src.getBoundingClientRect(), b = dst.getBoundingClientRect();
+  const ghost = h('img', { class: 'ghost', src: src.src, alt: '' });
+  Object.assign(ghost.style, { left: a.left + 'px', top: a.top + 'px', width: a.width + 'px', height: a.height + 'px' });
+  document.body.append(ghost);
+  const tx = (b.left + 56) - (a.left + a.width / 2), ty = (b.top + b.height / 2) - (a.top + a.height / 2), sc = Math.min(1, 64 / Math.max(a.width, a.height));
+  ghost.animate([
+    { transform: 'translate(0,0) scale(1) rotate(0deg)', opacity: 1 },
+    { transform: 'translate(' + tx * 0.5 + 'px,' + (ty * 0.5 - 60) + 'px) scale(' + (1 + sc) / 2 + ') rotate(-6deg)', opacity: 1, offset: 0.55 },
+    { transform: 'translate(' + tx + 'px,' + ty + 'px) scale(' + sc + ') rotate(4deg)', opacity: 0.9 }], { duration: 520, easing: 'cubic-bezier(.3,.7,.2,1)' }).onfinish = () => ghost.remove();
+}
+function collect(ids) {
+  ids = ids.filter(id => state.items.some(i => i.id === id && !i.trashed)); if (!ids.length) return;
+  const fresh = ids.filter(id => !state.bak.includes(id));
+  if (!fresh.length) { state.bak = state.bak.filter(id => !ids.includes(id)); toast(ids.length === 1 ? 'Uit je verzameling gehaald' : ids.length + ' uit je verzameling gehaald'); }
+  else {
+    $('#bak').hidden = false;
+    for (const id of fresh) flyToBak(id);
+    state.bak.push(...fresh);
+  }
+  saveMeta(); setTimeout(renderBak, fresh.length && !calm.matches ? 380 : 0);
+}
+function renderBak() {
+  const el = $('#bak');
+  state.bak = state.bak.filter(id => state.items.some(i => i.id === id && !i.trashed));
+  el.hidden = !state.bak.length || state.view.kind === 'trash';
+  if (el.hidden) { el.replaceChildren(); return; }
+  const its = state.bak.map(id => state.items.find(i => i.id === id)), n = its.length, show = its.slice(-7);
+  const fan = h('div', { class: 'bak-fan' }); fan.style.setProperty('--n', show.length);
+  show.forEach((it, i) => {
+    const t = h('button', { type: 'button', class: 'bak-card', title: 'Klik om uit je verzameling te halen', 'aria-label': 'Haal ' + (it.title || 'beeld') + ' uit je verzameling', onclick: () => { state.bak = state.bak.filter(x => x !== it.id); saveMeta(); renderBak(); } }, visual(it) ? thumbEl(it) : h('span', { class: 'bak-text', text: it.type === 'note' ? 'Aa' : '↗' }));
+    t.style.setProperty('--i', i); t.style.setProperty('--d', Math.abs(i - (show.length - 1) / 2));
+    fan.append(t);
+  });
+  const done = msg => { state.bak = []; saveMeta(); if (msg) toast(msg); };
+  const ids = () => state.bak.slice();
+  const act = (label, run, primary) => h('button', { type: 'button', class: 'bak-btn' + (primary ? ' primary' : ''), onclick: run }, label);
+  el.replaceChildren(fan, h('span', { class: 'bak-count', text: n }),
+    h('div', { class: 'bak-actions' },
+      h('strong', { text: n + (n === 1 ? ' beeld verzameld' : ' beelden verzameld') }),
+      h('div', { class: 'bak-row' },
+        act('Nieuwe collectie', async () => { const c = await newCol(); if (!c) return; const list = ids(); await addToCol(c, list); done(); setView({ kind: 'col', id: c.id }); }, true),
+        libCols().length ? act('Aan collectie…', e => openMenu(e.currentTarget, libCols().map(c => ({ label: c.name, run: async () => { const list = ids(); await addToCol(c, list); done((list.length === 1 ? 'Beeld' : list.length + ' beelden') + ' in "' + c.name + '" gezet'); renderAll(); } })))) : null,
+        act('Naar canvas', async () => { const c = await newCol(); if (!c) return; const list = ids(); await addToCol(c, list); c.view = 'canvas'; await DB.put('cols', c); done(); setView({ kind: 'space', id: c.id }); }),
+        act('Leegmaken', () => { done(); renderBak(); }))));
+}
+function toggleFullscreen() {
+  const app = window.collectorApp;
+  if (app && app.toggleFullscreen) return app.toggleFullscreen();
+  if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {});
 }
 
 // ---------- Slepen binnen Collector ----------
@@ -1523,6 +1702,7 @@ function setSize(v) {
   state.size = Math.round(clamp(v, 90, 420));
   $('#size').value = state.size; $('#grid').style.setProperty('--col', state.size + 'px');
   saveMetaSoon(); measureWaveSoon();
+  if (wall.on) { const cx = wall.ox + $('#wall').clientWidth / 2, old = wall.W + wall.gap; wallLayout(); wall.ox = cx * (wall.W + wall.gap) / old - $('#wall').clientWidth / 2; }
 }
 const saveMetaSoon = debounce(() => saveMeta(), 400), measureWaveSoon = debounce(() => measureWave(), 120);
 
@@ -1653,7 +1833,12 @@ function initEvents() {
   $('#grid').addEventListener('mouseover', e => { const c = e.target.closest('.card'); ql.hover = c ? c.dataset.id : null; });
   $('#grid').addEventListener('mouseleave', () => { ql.hover = null; });
   $('#sort').onchange = e => { state.sort = e.target.value; saveMeta(); renderGrid(); };
-  for (const b of document.querySelectorAll('#mode button')) b.onclick = () => setView({ kind: { library: 'all', collections: 'collections' }[b.dataset.mode] });
+  for (const b of document.querySelectorAll('#mode button')) b.onclick = () => {
+    const m = b.dataset.mode;
+    if (m === 'collections') return setView({ kind: 'collections' });
+    state.display = m === 'wall' ? 'wall' : 'grid';
+    setView(['collections', 'trash'].includes(state.view.kind) ? { kind: 'all' } : state.view);
+  };
   $('#file').onchange = async e => { const out = await addFiles(e.target.files); e.target.value = ''; landInSpace(out); afterAdd(out); };
   $('#q').oninput = debounce(e => { state.q = e.target.value.trim(); AI.qEmb = null; renderGrid(); aiQuery(); }, 120);
   $('#size').oninput = e => setSize(+e.target.value);
@@ -1719,6 +1904,14 @@ function initEvents() {
       return;
     }
     if (typing || $('#dlg').open || km.open) return;
+    if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'f') { e.preventDefault(); return toggleFullscreen(); }
+      if (!sp.space && (k === 'l' || k === 'c')) {
+        const ids = hoverTarget();
+        if (ids.length) { e.preventDefault(); if (k === 'l') ids.forEach(toggleLike); else collect(ids); return; }
+      }
+    }
     if (ql.id) {
       const i = lastVisible.findIndex(x => x.id === ql.id);
       if (e.key === ' ') { e.preventDefault(); closeQuickLook(); }
@@ -1773,6 +1966,8 @@ async function start() {
   state.size = meta.size3 || 200; $('#size').value = state.size;
   state.sort = meta.sort || 'new';
   if (meta.gap != null) state.gap = meta.gap; if (meta.radius != null) state.radius = meta.radius; applyLook();
+  state.tagsOpen = !!meta.tagsOpen;
+  state.bak = (Array.isArray(meta.bak) ? meta.bak : []).filter(id => state.items.some(i => i.id === id && !i.trashed));
   if (state.spaces.length) { // eenmalig: spaces worden collecties
     const n = await migrateSpaces(state.spaces);
     for (const s of state.spaces) await DB.del('spaces', s.id);
@@ -1780,7 +1975,7 @@ async function start() {
     if (n) setTimeout(() => toast(n === 1 ? 'Je space is nu een collectie met een canvas' : 'Je ' + n + ' spaces zijn nu collecties met een canvas'), 600);
   }
   for (const [id, e] of await DB.entries('embs')) AI.embs.set(id, e);
-  initEvents(); initSpaceEvents(); initDragDrop(); initWave(); renderAll();
+  initEvents(); initSpaceEvents(); initDragDrop(); initWave(); initWall(); renderAll();
   initExtensionBridge();
   initLibraryInfo(); adoptNew();
   await handleCapture();

@@ -4,9 +4,13 @@ Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelic
 
 ## 0.1.1
 
-- Collector kijkt bij elke start of er een nieuwere versie is en kan zichzelf bijwerken (Instellingen > Versie).
-- Nieuw app-icoon: een handgeschreven C.
-- Alleen nog een versie voor Macs met een Apple-chip.
+- **Ontdek:** Collector opent in een eindeloze wand van je beelden die zacht drijft. Sleep om te bewegen, ⌘ + scrollen of + en − om te zoomen. Onderin wissel je tussen Ontdek, Raster en Collecties.
+- **Sneltoetsen op het beeld onder je muis:** L voor love (favoriet), C voor collect, spatie voor een snel voorbeeld, F voor volledig scherm.
+- **Verzamelen:** met C vliegt een beeld naar een waaier linksonder. Beweeg eroverheen om er een nieuwe collectie van te maken, het aan een bestaande collectie toe te voegen of ermee naar het canvas te gaan.
+- **Zijbalk:** collecties tonen hun laatste beelden. De kleurbolletjes zijn weg; zoeken op kleur zit in het snelmenu (⌘K, typ "kleur") en in het palet van een beeld. Tags zijn ingeklapt.
+- **Bijwerken:** Collector kijkt bij elke start of er een nieuwere versie is en kan zichzelf bijwerken (Instellingen > Versie).
+- **Nieuw app-icoon:** een handgeschreven C.
+- Zachte overgangen tussen weergaven. Alleen nog een versie voor Macs met een Apple-chip.
 
 ## 0.1.0
 

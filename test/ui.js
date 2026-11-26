@@ -1,0 +1,88 @@
+'use strict';
+/** Test de vorm: ontdekwand, sneltoetsen L en C, de verzamelbak, de zijbalk. Gebruik: node test/ui.js */
+const fs = require('fs'), os = require('os'), path = require('path');
+const { chromium } = (() => { try { return require('playwright'); } catch { return require('playwright-core'); } })();
+const { start } = require('../server/server');
+let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed++; };
+(async () => {
+  const src = process.argv[2] || path.join(__dirname, 'fixtures'), shots = process.env.SHOTS;
+  const imgs = fs.readdirSync(src).filter(f => /\.(jpe?g|png)$/i.test(f)).map(f => path.join(src, f));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'collector-ui-'));
+  const srv = await start({ library: path.join(tmp, 'lib'), cache: path.join(tmp, 'cache') });
+  const browser = await chromium.launch();
+  const p = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  const shot = n => shots ? p.screenshot({ path: path.join(shots, n + '.png') }) : null;
+  await p.goto(srv.url); await p.waitForSelector('.empty h2');
+  ok(await p.$$eval('.swatch', e => e.length) === 0, 'geen kleurbolletjes meer in de zijbalk');
+  await p.setInputFiles('#file', imgs);
+  await p.waitForSelector('.wtile', { timeout: 60000 });
+  await p.waitForTimeout(900);
+  ok(await p.$eval('#gridWrap', e => e.hidden) && (await p.$$eval('.wtile', e => e.length)) >= imgs.length, 'met ' + imgs.length + ' beelden opent Ontdek: een wand die het scherm vult (' + (await p.$$eval('.wtile', e => e.length)) + ' tegels)');
+  ok((await p.getAttribute('#mode button[data-mode="wall"]', 'aria-pressed')) === 'true', 'onderin staat Ontdek aan');
+  // drijven: zonder iets te doen bewegen de tegels
+  await p.mouse.move(100, 500); // buiten de wand (zijbalk)
+  const pos = () => p.$$eval('.wtile', e => e.slice(0, 6).map(x => x.style.transform).join(';'));
+  const a1 = await pos(); await p.waitForTimeout(2200); const a2 = await pos();
+  ok(a1 !== a2, 'de wand drijft vanzelf als je niets doet');
+  await shot('1-ontdek');
+  // slepen verplaatst de wand
+  const before = await pos();
+  await p.mouse.move(800, 450); await p.mouse.down(); await p.mouse.move(600, 300, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(200);
+  ok(before !== await pos(), 'slepen verplaatst de wand');
+  await p.waitForTimeout(900);
+  // L = love op het beeld onder de muis
+  await p.mouse.move(820, 430); await p.waitForTimeout(150);
+  const hov = await p.evaluate(() => { const t = document.elementFromPoint(820, 430).closest('.wtile'); return t && t.dataset.id; });
+  ok(!!hov, 'er ligt een beeld onder de muis');
+  await p.keyboard.press('l'); await p.waitForTimeout(300);
+  ok((await p.textContent('#nav .nav-item:has-text("Favorieten") .count')) === '1', 'L zet het beeld onder de muis bij je favorieten');
+  // C = collect: vliegt naar de bak onderin
+  await p.keyboard.press('c'); await p.waitForTimeout(150);
+  ok(await p.$$eval('.ghost', e => e.length) === 1, 'C laat het beeld naar onderen vliegen');
+  await shot('2-vlucht');
+  await p.waitForTimeout(700);
+  ok(!(await p.$eval('#bak', e => e.hidden)) && (await p.textContent('.bak-count')) === '1', 'onderin staat de verzamelbak met 1 beeld');
+  for (const [x, y] of [[400, 250], [1330, 760], [900, 820], [1330, 200]]) { await p.mouse.move(x, y); await p.waitForTimeout(120); await p.keyboard.press('c'); await p.waitForTimeout(120); }
+  await p.waitForTimeout(800);
+  const n = +(await p.textContent('.bak-count'));
+  ok(n >= 2, 'meer beelden verzamelen: ' + n + ' in de waaier');
+  await shot('3-waaier');
+  // eroverheen: de waaier wordt groter en toont acties
+  const w0 = (await p.$eval('.bak-fan', e => e.getBoundingClientRect().width));
+  await p.hover('.bak-fan'); await p.waitForTimeout(450);
+  const w1 = (await p.$eval('.bak-fan', e => e.getBoundingClientRect().width));
+  ok(w1 > w0 * 1.25 && await p.isVisible('.bak-actions'), 'eroverheen bewegen vergroot de waaier (' + Math.round(w0) + ' → ' + Math.round(w1) + ' px) en toont de acties');
+  await shot('4-waaier-open');
+  await p.click('.bak-btn.primary'); await p.fill('#dlg input', 'Najaar'); await p.click('#dlg button.primary'); await p.waitForTimeout(700);
+  ok((await p.textContent('#filters h1')) === 'Najaar' && await p.$eval('#bak', e => e.hidden), 'Nieuwe collectie: de verzameling wordt de collectie "Najaar" en de bak is leeg');
+  ok((await p.textContent('#nav .colrow:has-text("Najaar") .count')) === String(n) && (await p.$$eval('#nav .colrow:has-text("Najaar") .colstrip img', e => e.length)) === Math.min(3, n), 'de zijbalk toont de collectie met haar laatste beelden');
+  await shot('5-collectie');
+  // van de bak rechtstreeks naar het canvas
+  await p.click('#nav >> text=Alles'); await p.waitForSelector('.wtile'); await p.waitForTimeout(500);
+  await p.mouse.move(820, 430); await p.waitForTimeout(150); await p.keyboard.press('c'); await p.waitForTimeout(700);
+  await p.hover('.bak-fan'); await p.waitForTimeout(350); await p.click('.bak-btn >> text=Naar canvas'); await p.fill('#dlg input', 'Bord'); await p.click('#dlg button.primary');
+  await p.waitForSelector('#viewSpace:not([hidden]) .node'); ok(true, 'Naar canvas: de verzameling staat op een vrij canvas');
+  await shot('6-canvas');
+  await p.click('#nav >> text=Alles'); await p.waitForSelector('.wtile');
+  // Raster en terug, zoomen, sorteren
+  await p.click('#mode >> text=Raster'); await p.waitForSelector('.card');
+  ok(await p.$$eval('.card', e => e.length) === imgs.length && await p.$eval('#wall', e => e.hidden), 'Raster toont dezelfde beelden als lijst');
+  await p.hover('.card >> nth=1'); await p.keyboard.press('c'); await p.waitForTimeout(700);
+  ok((await p.textContent('.bak-count')) === '1', 'C werkt ook in het raster');
+  await p.keyboard.press('c'); await p.waitForTimeout(300); ok(await p.$eval('#bak', e => e.hidden), 'nogmaals C haalt het beeld weer uit de verzameling');
+  await p.click('#mode >> text=Ontdek'); await p.waitForSelector('.wtile');
+  const tw0 = await p.$eval('.wtile', e => e.offsetWidth); await p.keyboard.press('+'); await p.waitForTimeout(250);
+  for (let i = 0; i < 5; i++) await p.keyboard.press('+'); await p.waitForTimeout(250);
+  ok(await p.$eval('.wtile', e => e.offsetWidth) >= tw0, 'zoomen met + werkt op de wand');
+  await p.selectOption('#sort', 'shuffle'); await p.waitForTimeout(300); ok(await p.$$eval('.wtile', e => e.length) > 0, 'sorteren op Willekeurig');
+  // klik opent het beeld; Tags zijn ingeklapt; kleur zoeken via het snelmenu
+  await p.mouse.click(820, 430); await p.waitForSelector('.detail-panel'); ok(true, 'klik op een tegel opent het beeld'); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+  ok(await p.$$eval('#nav .auto-dot', e => e.length) === 0, 'tags zijn ingeklapt');
+  await p.click('.foldbtn'); await p.waitForTimeout(150); ok(await p.$$eval('#nav .auto-dot', e => e.length) > 0, 'klik op Tags klapt ze uit');
+  await p.keyboard.press('Control+k'); await p.keyboard.type('kleur: blauw'); await p.keyboard.press('Enter'); await p.waitForTimeout(500);
+  ok((await p.textContent('#filters')).includes('Kleur'), 'zoeken op kleur zit in het snelmenu (⌘K)');
+  ok(errs.length === 0, errs.length ? 'fouten: ' + errs.slice(0, 3).join(' / ') : 'geen fouten in de pagina');
+  await browser.close(); await srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
+  console.log(failed ? failed + ' mislukt' : 'Alles geslaagd'); process.exit(failed ? 1 : 0);
+})().catch(e => { console.error('FAIL', e.message.slice(0, 400)); process.exit(1); });

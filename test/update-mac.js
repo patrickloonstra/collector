@@ -4,7 +4,7 @@
  * Gebruik: node test/update-mac.js dist/mac-arm64/Collector.app
  */
 const fs = require('fs'), os = require('os'), path = require('path'), http = require('http'), crypto = require('crypto');
-const { execFileSync, spawnSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed++; };
 const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -37,19 +37,25 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
   const marker = path.join(installed, 'Contents', 'Resources', 'nieuw.txt');
-  const runApp = extra => spawnSync(path.join(installed, 'Contents', 'MacOS', 'Collector'), [], { encoding: 'utf8', timeout: 120000,
-    env: { ...process.env, COLLECTOR_UPDATE_TEST: '1', COLLECTOR_UPDATE_FEED: 'http://127.0.0.1:' + srv.address().port + '/releases', COLLECTOR_LIBRARY: path.join(tmp, 'lib'), COLLECTOR_USERDATA: path.join(tmp, 'ud'), ...extra } });
+  // Niet blokkerend starten: deze test speelt zelf de downloadplek en moet dus kunnen blijven antwoorden.
+  const launch = env => new Promise(res => {
+    const c = spawn(path.join(installed, 'Contents', 'MacOS', 'Collector'), [], { env: { ...process.env, COLLECTOR_LIBRARY: path.join(tmp, 'lib'), COLLECTOR_USERDATA: path.join(tmp, 'ud'), ...env } });
+    let stdout = '', stderr = ''; c.stdout.on('data', d => { stdout += d; }); c.stderr.on('data', d => { stderr += d; });
+    const t = setTimeout(() => c.kill('SIGKILL'), 90000);
+    c.on('close', status => { clearTimeout(t); res({ status, stdout, stderr }); });
+  });
+  const runApp = extra => launch({ COLLECTOR_UPDATE_TEST: '1', COLLECTOR_UPDATE_FEED: 'http://127.0.0.1:' + srv.address().port + '/releases', ...extra });
 
   // 1. Een download die niet klopt met de controlesom wordt geweigerd; de app blijft zoals hij was.
   digest = 'sha256:' + '0'.repeat(64);
-  let r = runApp();
+  let r = await runApp();
   ok(r.status === 1 && /controlesom/.test(r.stdout + r.stderr), 'download met verkeerde controlesom wordt geweigerd');
   await sleep(1500);
   ok(!fs.existsSync(marker), 'de geïnstalleerde app is dan niet aangeraakt');
 
   // 2. De echte update: zoeken, downloaden, controleren, en na afsluiten de app vervangen.
   digest = 'sha256:' + sum;
-  r = runApp();
+  r = await runApp();
   console.log((r.stdout + r.stderr).split('\n').filter(l => /UPDATE TEST|Update/.test(l)).join('\n'));
   ok(r.status === 0 && /status: ready 9\.9\.9/.test(r.stdout), 'app vindt versie 9.9.9, downloadt en zet hem klaar');
   for (let i = 0; i < 100 && !fs.existsSync(marker); i++) await sleep(300);
@@ -62,12 +68,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   // 3. De vervangen app start en werkt, en de bibliotheek van vóór de update staat er nog.
   fs.mkdirSync(path.join(tmp, 'lib', 'Beelden'), { recursive: true });
   fs.writeFileSync(path.join(tmp, 'lib', 'Beelden', 'van-voor-de-update.txt'), 'x');
-  r = spawnSync(path.join(installed, 'Contents', 'MacOS', 'Collector'), [], { encoding: 'utf8', timeout: 120000, env: { ...process.env, COLLECTOR_SMOKE: '1', COLLECTOR_LIBRARY: path.join(tmp, 'lib'), COLLECTOR_USERDATA: path.join(tmp, 'ud') } });
+  r = await launch({ COLLECTOR_SMOKE: '1' });
   ok(r.status === 0 && /SMOKE OK/.test(r.stdout), 'de bijgewerkte app start en bewaart een beeld');
   ok(fs.existsSync(path.join(tmp, 'lib', 'Beelden', 'van-voor-de-update.txt')), 'de bibliotheekmap is door de update niet aangeraakt');
 
   // 4. Is de app al de nieuwste, dan gebeurt er niets.
-  r = runApp({ COLLECTOR_FAKE_VERSION: '9.9.9' });
+  r = await runApp({ COLLECTOR_FAKE_VERSION: '9.9.9' });
   ok(/status: none/.test(r.stdout), 'nieuwste versie: geen update');
   srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
   console.log(failed ? failed + ' mislukt' : 'Alles geslaagd'); process.exit(failed ? 1 : 0);

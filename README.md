@@ -23,7 +23,21 @@ Collector/
 2. Open het bestand en sleep Collector naar Programma's.
 3. De app is niet door Apple ondertekend. De eerste keer weigert macOS hem te openen. Ga naar Systeeminstellingen > Privacy en beveiliging, scrol naar beneden en klik "Open toch". Daarna start hij gewoon.
 
-Een update installeer je voorlopig op dezelfde manier: nieuw `.dmg` downloaden en de app in Programma's vervangen. Je bibliotheekmap wordt daarbij niet aangeraakt.
+Daarna werkt Collector zichzelf bij: hij kijkt bij elke start of er een nieuwere versie is, downloadt die en installeert hem als je de app afsluit. Dat werkt alleen als deze repo openbaar is en de app in Programma's staat. Je bibliotheekmap wordt bij een update niet aangeraakt.
+
+## Sneltoetsen
+
+| Toets | Wat |
+|---|---|
+| L | Love: het beeld onder je muis wordt een favoriet |
+| C | Collect: het beeld gaat naar je verzameling linksonder |
+| Spatie | Snel voorbeeld |
+| F | Volledig scherm |
+| ⌘K | Snelmenu: acties, collecties, tags, beelden, zoeken op kleur |
+| + en − | Zoomen (of ⌘ + scrollen) |
+| N | Nieuwe notitie |
+| R | Herontdek een willekeurig beeld |
+| ⌘, | Instellingen |
 
 ## Bewaren vanuit je browser
 

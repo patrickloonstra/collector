@@ -47,7 +47,7 @@ class Updater {
     if (['downloading', 'ready'].includes(this.state.status)) return this.state;
     this.set({ status: 'checking', message: '' });
     try {
-      const r = await fetch(FEED, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Collector-app' } });
+      const r = await fetch(FEED, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Collector-app' }, signal: AbortSignal.timeout(15000) });
       if (r.status === 404) throw new Error('De downloadplek is niet openbaar bereikbaar. Zolang de repo privé is, kan Collector niet zelf naar updates kijken.');
       if (!r.ok) throw new Error('De downloadplek gaf een fout (' + r.status + ').');
       const cur = parse(this.current); let best = null;
@@ -64,7 +64,10 @@ class Updater {
       this.found = best;
       this.set({ status: 'available', version: best.version, notes: best.notes });
       this.log('Update gevonden: ' + best.version);
-    } catch (e) { this.log('Zoeken naar updates mislukt: ' + e.message); this.set({ status: 'error', message: e.message }); }
+    } catch (e) {
+      const msg = e.name === 'TimeoutError' ? 'De downloadplek reageert niet. Controleer je internetverbinding.' : /fetch failed/i.test(e.message) ? 'Geen verbinding met de downloadplek. Controleer je internetverbinding.' : e.message;
+      this.log('Zoeken naar updates mislukt: ' + msg); this.set({ status: 'error', message: msg });
+    }
     return this.state;
   }
 

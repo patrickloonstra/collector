@@ -26,6 +26,7 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed+
   let p = await open();
   await p.waitForSelector('.empty h2');
   ok((await p.textContent('#where')).includes('Mijn Collector'), 'interface toont het pad van de map');
+  await p.click('#mode >> text=Raster'); // deze test werkt in het raster; de ontdekwand heeft een eigen test
 
   // toevoegen -> echte bestanden met hun eigen naam
   await p.setInputFiles('#file', imgs.slice(0, 5));
@@ -59,7 +60,9 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed+
   // herstart van de app: alles is er nog
   await p.context().close(); await srv.close();
   srv = await start({ library, cache });
-  p = await open(); await p.waitForSelector('.card');
+  p = await open(); await p.waitForSelector('.wtile');
+  ok(true, 'na herstart opent de app in Ontdek');
+  await p.click('#mode >> text=Raster'); await p.waitForSelector('.card');
   ok(await p.$$eval('.card', e => e.length) === 6, 'na herstart: 6 items terug');
   ok((await p.textContent('#nav .nav-item:has-text("Typografie") .count')) === '2', 'na herstart: collectie met 2 beelden');
 
@@ -106,7 +109,7 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed+
   await srv.switchLibrary(nas);
   await p.reload(); await p.waitForSelector('.empty h2');
   ok(fs.existsSync(path.join(nas, 'Beelden')) && (await p.textContent('#where')).includes('NAS'), 'wisselen naar een andere map (bijv. NAS) geeft een lege bibliotheek daar');
-  await srv.switchLibrary(library); await p.reload(); await p.waitForSelector('.card');
+  await srv.switchLibrary(library); await p.reload(); await p.waitForSelector('.wtile'); await p.click('#mode >> text=Raster'); await p.waitForSelector('.card');
   ok(await p.$$eval('.card', e => e.length) === 9, 'terug naar de eerste map: alles staat er nog');
 
   ok(errs.length === 0, errs.length ? 'fouten: ' + errs.join(' / ') : 'geen fouten in de pagina');
