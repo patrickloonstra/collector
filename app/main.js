@@ -85,8 +85,11 @@ ipcMain.handle('set-onboarded', () => { writeConfig({ ...readConfig(), onboarded
 const autoUpdate = () => readConfig().autoUpdate !== false;
 const updateInfo = () => ({ ...updater.state, auto: autoUpdate(), blocked: updater.target().error || '' });
 /** Kijkt of er een nieuwere versie is en zet die, als automatisch bijwerken aan staat, meteen klaar. */
+const CHECK_EVERY = 2 * 3600 * 1000;
+let lastCheck = 0;
 async function checkForUpdates(andDownload = autoUpdate()) {
   if (!updater) return null;
+  lastCheck = Date.now();
   await updater.check();
   if (andDownload && updater.state.status === 'available' && !updater.target().error) await updater.download();
   return updateInfo();
@@ -96,6 +99,21 @@ ipcMain.handle('update-check', () => checkForUpdates());
 ipcMain.handle('update-download', async () => { await updater.download(); return updateInfo(); });
 ipcMain.handle('update-restart', () => { if (updater.installOnQuit(true)) { app.quit(); return true; } return false; });
 ipcMain.handle('update-set-auto', (e, on) => { writeConfig({ ...readConfig(), autoUpdate: !!on }); return updateInfo(); });
+// Nieuws en aanbiedingen voor de meldingskaartjes: een klein lijstje op de website.
+const NEWS_URL = process.env.COLLECTOR_NEWS_URL || 'https://dev.patrickloonstra.nl/collector/nieuws.json';
+async function fetchNews() {
+  try {
+    const r = await fetch(NEWS_URL, { headers: { 'User-Agent': 'Collector-app' }, signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return [];
+    const list = JSON.parse(await r.text()), now = Date.now();
+    if (!Array.isArray(list)) return [];
+    const okLink = u => typeof u === 'string' && (/^https:\/\/(dev\.)?patrickloonstra\.nl\//.test(u) || (process.env.COLLECTOR_NEWS_URL && u.startsWith(new URL(NEWS_URL).origin + '/')));
+    return list.filter(n => n && typeof n.id === 'string' && typeof n.title === 'string')
+      .filter(n => (!n.from || Date.parse(n.from) <= now) && (!n.until || Date.parse(n.until) >= now)).slice(0, 10)
+      .map(n => ({ id: n.id.slice(0, 40), kind: String(n.kind || 'Nieuws').slice(0, 20), title: n.title.slice(0, 80), text: String(n.text || '').slice(0, 300), link: okLink(n.link) ? n.link : '', label: String(n.label || '').slice(0, 30) }));
+  } catch (e) { return []; } // geen verbinding of geen geldig lijstje: dan gewoon geen nieuws
+}
+ipcMain.handle('news-get', () => fetchNews());
 ipcMain.handle('toggle-fullscreen', () => { if (win) win.setFullScreen(!win.isFullScreen()); });
 ipcMain.handle('reset-library', async () => {
   try { await server.switchLibrary(defaultLibrary()); } catch (e) { dialog.showErrorBox('De standaardmap kan niet gebruikt worden', defaultLibrary() + '\n\n' + e.message); return false; }
@@ -168,7 +186,9 @@ else {
     app.on('activate', () => { if (!win) createWindow(); });
     // Bij elke start kijken of er een nieuwere versie is, en daarna elke zes uur.
     setTimeout(() => checkForUpdates().catch(() => {}), 4000);
-    setInterval(() => checkForUpdates().catch(() => {}), 6 * 3600 * 1000);
+    // Staat de app de hele dag open: elke twee uur opnieuw, en ook als je na lange tijd terugkomt.
+    setInterval(() => checkForUpdates().catch(() => {}), CHECK_EVERY);
+    app.on('browser-window-focus', () => { if (Date.now() - lastCheck > CHECK_EVERY) checkForUpdates().catch(() => {}); });
   });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
   app.on('before-quit', () => {

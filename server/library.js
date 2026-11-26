@@ -139,6 +139,23 @@ class Library {
     try { await fsp.rename(p, dest); } catch (e) { if (e.code !== 'ENOENT') throw e; }
     delete this.data.files[id]; this.save();
   }
+  /** Vervangt het bestand van een item door een kleinere versie. Het origineel verhuist naar Prullenbak/. */
+  async replaceFull(id, buf, type) {
+    const old = this.pathOf(id), ext = IMAGE_EXT[type];
+    if (!old || !ext) throw new Error('kan dit beeld niet vervangen');
+    const oldName = path.basename(old), stem = oldName.slice(0, oldName.length - path.extname(oldName).length);
+    let dest = path.join(this.trash, oldName);
+    try { await fsp.access(dest); dest = path.join(this.trash, Date.now() + ' ' + oldName); } catch { /* vrij */ }
+    await fsp.rename(old, dest);
+    delete this.data.files[id];
+    try {
+      const name = await this.uniqueName(stem + '.' + ext);
+      await fsp.writeFile(path.join(this.images, name), buf);
+      this.data.files[id] = name;
+    } catch (e) { await fsp.rename(dest, old); this.data.files[id] = oldName; throw e; } // mislukt: origineel terug
+    this.save();
+    return this.data.files[id];
+  }
   async embeddings() {
     const dir = path.join(this.cache, 'embs'), out = {};
     await fsp.mkdir(dir, { recursive: true }); // de cache mag altijd verdwenen zijn

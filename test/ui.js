@@ -77,12 +77,22 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await p.click('#spInfo .detail-head .icon-btn >> nth=0');
   await p.mouse.click(300, 700); await p.waitForTimeout(200); ok(await p.$('#spInfo .detail-panel') === null, 'klik naast het beeld sluit het infovenster');
   await p.click('#nav >> text=Alles'); await p.waitForSelector('.wtile');
+  // rechtsklik op een beeld: ruim menu om aan een collectie toe te voegen
+  await p.waitForTimeout(600); await p.mouse.click(820, 430, { button: 'right' }); await p.waitForSelector('#menu.big .colrow');
+  ok(await p.$$eval('#menu.big .colrow', e => e.length) === 2 && await p.isVisible('#menu.big .ctx-new'), 'rechtsklik: menu met je collecties en "Nieuwe collectie"');
+  await shot('8-rechtsklik');
+  const c0 = +(await p.textContent('#nav .colrow:has-text("Najaar") .count'));
+  await p.click('#menu.big .colrow:has-text("Najaar")'); await p.waitForTimeout(500);
+  const c1 = +(await p.textContent('#nav .colrow:has-text("Najaar") .count'));
+  ok(Math.abs(c1 - c0) === 1, 'klik op een collectie in het menu zet het beeld erin (of haalt het eruit): ' + c0 + ' → ' + c1);
   // Raster en terug, zoomen, sorteren
   await p.click('#mode >> text=Raster'); await p.waitForSelector('.card');
   ok(await p.$$eval('.card', e => e.length) === imgs.length && await p.$eval('#wall', e => e.hidden), 'Raster toont dezelfde beelden als lijst');
   await p.hover('.card >> nth=1'); await p.keyboard.press('c'); await p.waitForTimeout(700);
   ok((await p.textContent('.bak-count')) === '1', 'C werkt ook in het raster');
   await p.keyboard.press('c'); await p.waitForTimeout(300); ok(await p.$eval('#bak', e => e.hidden), 'nogmaals C haalt het beeld weer uit de verzameling');
+  await p.keyboard.press('Control+a'); await p.waitForTimeout(300);
+  ok((await p.textContent('#selbar strong')) === imgs.length + ' geselecteerd', '⌘A selecteert alles'); await p.keyboard.press('Escape'); await p.waitForTimeout(200);
   await p.click('#mode >> text=Ontdek'); await p.waitForSelector('.wtile');
   const tw0 = await p.$eval('.wtile', e => e.offsetWidth); await p.keyboard.press('+'); await p.waitForTimeout(250);
   for (let i = 0; i < 5; i++) await p.keyboard.press('+'); await p.waitForTimeout(250);

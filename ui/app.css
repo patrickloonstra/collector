@@ -631,3 +631,52 @@ html[data-shell="mac"] .top { padding-top: 12px; }
 .side-bottom .lib-switch { order: 0; }
 .side-bottom .lib-switch span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .side-bottom .gear { order: 1; }
+
+/* ---------- 0.1.5: meldingen, rechtsklikmenu, groepen per dag, openingsscherm ---------- */
+.notes { order: 4; position: relative; margin: 0 2px 6px; padding-top: 14px; }
+.note { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 11px 12px 12px; box-shadow: 0 6px 20px rgba(0,0,0,.09); font-size: 13px; }
+.note:not(.front) { position: absolute; left: 0; right: 0; top: 14px; height: 44px; overflow: hidden; pointer-events: none; transform-origin: 50% 0;
+  transform: translateY(calc(var(--i) * -7px)) scale(calc(1 - var(--i) * .05)); opacity: calc(1 - var(--i) * .3); }
+.note.front { position: relative; z-index: 2; animation: stageIn .26s cubic-bezier(.2,.7,.2,1); }
+.note-head { display: flex; align-items: center; justify-content: space-between; min-height: 18px; }
+.note-kind { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.note-x { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; width: 22px; height: 22px; border-radius: 50%; margin: -4px -4px 0 0; }
+.note-x:hover { background: var(--hover); color: var(--ink); }
+.note strong { display: block; margin-top: 2px; font-weight: 600; line-height: 1.3; }
+.note p { margin: 3px 0 0; color: var(--muted); line-height: 1.4; }
+.note-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; }
+.note-btn { border: 0; background: var(--ink); color: var(--bg); border-radius: 999px; height: 28px; padding: 0 12px; font-weight: 600; font-size: 12.5px; }
+.note-btn:hover { opacity: .86; }
+.newslist { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.newslist li { padding: 10px 12px; background: var(--side); border-radius: 10px; font-size: 13px; }
+.newslist li p { margin: 2px 0 0; color: var(--muted); }
+
+.menu.big { min-width: 300px; max-width: 340px; padding: 8px; border-radius: 16px; }
+.ctx-rows { max-height: 46dvh; overflow-y: auto; display: grid; gap: 2px; }
+.menu.big .colrow { display: flex; width: 100%; padding: 8px; gap: 12px; align-items: center; justify-content: flex-start; font-size: 15px; }
+.menu.big .colrow .label { flex: 1; font-size: 15px; font-weight: 500; }
+.menu.big .colrow.on { background: var(--hover); }
+.menu.big .colrow.on .count { background: var(--ink); color: var(--bg); }
+.menu.big .colrow.on .count::before { content: "✓ "; }
+.menu.big .ctx-new { height: 44px; font-weight: 600; justify-content: flex-start; padding: 0 12px; }
+.ctx-acts { display: flex; flex-wrap: wrap; gap: 4px; }
+.menu.big .ctx-act { width: auto; flex: 1 1 auto; justify-content: center; padding: 8px 10px; font-size: 13px; border: 1px solid var(--line); }
+.menu.big .ctx-act.danger { color: #d93025; }
+
+.grp { flex: 0 0 100%; display: flex; align-items: baseline; gap: 10px; padding: 14px 0 0; }
+.grp:first-child { padding-top: 0; }
+.grp strong { font-weight: 600; font-size: 14px; }
+.grp span { color: var(--muted); font-size: 13px; }
+.grp .btn-text { font-weight: 500; margin-left: auto; }
+
+.splash { background: #fbfaf6; }
+.splash::before { content: ""; position: absolute; inset: 0; background: url("assets/krabbels.svg") center / cover;
+  -webkit-mask-image: radial-gradient(ellipse 58% 62% at 50% 50%, rgba(0,0,0,.03) 0%, rgba(0,0,0,.10) 40%, rgba(0,0,0,.55) 78%, #000 100%);
+  mask-image: radial-gradient(ellipse 58% 62% at 50% 50%, rgba(0,0,0,.03) 0%, rgba(0,0,0,.10) 40%, rgba(0,0,0,.55) 78%, #000 100%); }
+.splash-mid { position: relative; background: none; min-width: 0; padding: 0 24px; gap: 0; text-align: center; }
+.splash-mid img { width: 84px; height: 84px; border-radius: 20px; }
+.splash-mid h1 { font: 600 19px/1 var(--font-body); letter-spacing: -.01em; margin: 14px 0 0; opacity: .75; }
+.splash-hi { font: 400 clamp(40px, 6.4vw, 78px)/1.1 ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif; letter-spacing: -.025em; min-height: 1.15em; margin-top: 26px; opacity: 1; }
+.splash-hi::after { width: 2px; height: .82em; margin-left: 4px; vertical-align: -.06em; }
+.splash-lang { margin-top: 12px; font-size: 11.5px; }
+.menu.big .colrow.on::after { display: none; }

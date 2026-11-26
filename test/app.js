@@ -1,6 +1,6 @@
 'use strict';
 /** Test de echte app-schil (Electron): bestanden kiezen, slepen, instellingen. Gebruik: node test/app.js <map met beelden> */
-const fs = require('fs'), os = require('os'), path = require('path');
+const fs = require('fs'), os = require('os'), path = require('path'), http = require('http');
 const { _electron } = (() => { try { return require('playwright-core'); } catch { return require('playwright'); } })();
 let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed++; };
 (async () => {
@@ -11,7 +11,17 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   // Met COLLECTOR_APP_BIN test je de gebouwde app in plaats van de broncode.
   const bin = process.env.COLLECTOR_APP_BIN;
   const args = [...(process.platform === 'linux' ? ['--no-sandbox'] : []), ...(bin ? [] : [path.join(__dirname, '..')])];
-  const app = await _electron.launch({ executablePath: bin || require('electron'), args, env: { ...process.env, COLLECTOR_LIBRARY: library, COLLECTOR_USERDATA: ud } });
+  // nagebootste website: twee nieuwsberichten en een nieuwere versie
+  const web = http.createServer((q, r) => {
+    const origin = 'http://127.0.0.1:' + web.address().port;
+    r.writeHead(200, { 'Content-Type': 'application/json' });
+    if (q.url.startsWith('/nieuws.json')) return r.end(JSON.stringify([{ id: 'actie', kind: 'Aanbieding', title: 'Black Friday', text: 'Tot maandag voor de helft.', link: origin + '/actie', label: 'Bekijk' }, { id: 'oud', title: 'Verlopen', until: '2020-01-01' }, { id: 'tip', title: 'Nieuw: rechtsklik', text: 'Voeg snel toe aan een collectie.' }, { id: 'kwaad', title: 'Vreemde link', link: 'https://kwaad.example/x' }]));
+    r.end(JSON.stringify([{ tag_name: 'v9.9.9', draft: false, prerelease: false, body: '', assets: [{ name: 'Collector-9.9.9.zip', browser_download_url: origin + '/Collector-9.9.9.zip', size: 1 }] }]));
+  });
+  await new Promise(r => web.listen(0, '127.0.0.1', r));
+  const site = 'http://127.0.0.1:' + web.address().port;
+  const envApp = { ...process.env, COLLECTOR_LIBRARY: library, COLLECTOR_USERDATA: ud, COLLECTOR_NEWS_URL: site + '/nieuws.json', COLLECTOR_UPDATE_FEED: site + '/releases' };
+  const app = await _electron.launch({ executablePath: bin || require('electron'), args, env: envApp });
   const p = await app.firstWindow();
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   // 0. openingsscherm en, de eerste keer, de uitleg
@@ -63,12 +73,24 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await p.waitForTimeout(300);
   const logText = fs.readFileSync(path.join(ud, 'collector.log'), 'utf8');
   ok(/gestart/.test(logText) && /Toevoegen mislukt: ontwerp\.psd/.test(logText), 'logboek bevat de start en het mislukte bestand');
+  // 6b. meldingen linksonder: update en nieuws, gestapeld en weg te klikken
+  await p.waitForFunction(() => document.querySelectorAll('#notes .note').length === 3, null, { timeout: 15000 });
+  const front = () => p.textContent('#notes .note.front strong');
+  ok(/9\.9\.9/.test(await front()) && /1 van 4/.test(await p.textContent('#notes .note.front .note-kind')), 'meldingen: bovenop de update ("' + await front() + '"), 4 in totaal, 3 gestapeld zichtbaar');
+  await p.screenshot({ path: path.join(os.tmpdir(), 'collector-meldingen.png') });
+  await p.click('#notes .note-x'); ok((await front()) === 'Black Friday', 'wegklikken toont de volgende: de aanbieding');
+  ok((await p.getAttribute('#notes .note.front a', 'href')) === site + '/actie', 'aanbieding linkt naar de website');
+  await p.click('#notes .note-x'); await p.click('#notes .note-x');
+  ok((await front()) === 'Vreemde link' && await p.$$eval('#notes .note.front a', e => e.length) === 0, 'een link naar een onbekende website wordt niet getoond');
+  await p.click('#notes .note-x'); ok(await p.$eval('#notes', e => e.hidden), 'alles weggeklikt: de hoek is weer leeg');
+  await p.click('#btnSettings'); ok(await p.$$eval('.newslist li', e => e.length) === 4 && !(await p.textContent('.newslist')).includes('Verlopen'), 'Instellingen > Nieuws toont alles nog, zonder het verlopen bericht'); await p.click('#dlg >> text=Sluiten');
   // 7. tweede start: geen uitleg meer
   await app.close();
-  const app2 = await _electron.launch({ executablePath: bin || require('electron'), args, env: { ...process.env, COLLECTOR_LIBRARY: library, COLLECTOR_USERDATA: ud } });
+  const app2 = await _electron.launch({ executablePath: bin || require('electron'), args, env: envApp });
   const p2 = await app2.firstWindow(); await p2.waitForSelector('#splash', { state: 'detached', timeout: 10000 }); await p2.waitForTimeout(400);
   ok(await p2.$eval('#onboard', e => e.hidden), 'tweede start: wel het openingsscherm, geen uitleg meer');
-  await app2.close();
+  ok(await p2.$eval('#notes', e => e.hidden), 'weggeklikte meldingen komen na een herstart niet terug');
+  await app2.close(); web.close();
   ok(errs.length === 0, errs.length ? 'fouten: ' + errs.slice(0, 3).join(' / ') : 'geen fouten in het venster');
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(failed ? failed + ' mislukt' : 'Alles geslaagd'); process.exit(failed ? 1 : 0);

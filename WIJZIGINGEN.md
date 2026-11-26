@@ -2,6 +2,16 @@
 
 Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelichting bij de release.
 
+## 0.1.5
+
+- **Meldingen:** linksonder verschijnen kaartjes als er een update klaarstaat of als er nieuws is. Zijn er meer, dan liggen ze gestapeld achter elkaar. Je klikt ze weg met het kruisje; alles blijft terug te lezen in Instellingen > Nieuws.
+- **Sneller op de hoogte:** de app kijkt elke twee uur of er een nieuwe versie is, ook als hij de hele dag open staat.
+- **Rechtsklik op een beeld:** een ruim menu om het meteen aan een collectie toe te voegen of eruit te halen, met Love, Collect en Weggooien eronder.
+- **Per dag:** het raster groepeert op de dag waarop je iets toevoegde, met een knop om die dag in één keer te selecteren. ⌘A selecteert alles.
+- **Voorbeelden weggooien:** in Instellingen > Bibliotheekmap staat een knop om de voorbeeldbeelden in één keer naar de prullenbak te sturen.
+- **Ruimte besparen:** in Instellingen kun je grote beelden kleiner laten opslaan. Het origineel verhuist naar de map Prullenbak en wordt nooit gewist.
+- **Openingsscherm:** de begroeting staat groot in een schreefletter, en de krabbels zijn vaag in het midden en sterker naar de randen.
+
 ## 0.1.4
 
 - **Openingsscherm:** bij het starten zie je kort het logo, de naam en een begroeting die past bij het moment van de dag, elke keer in een andere taal. Is dat niet je eigen taal, dan staat er klein bij welke het is.

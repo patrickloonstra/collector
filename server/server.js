@@ -123,6 +123,7 @@ async function start(opts) {
       res.write(': ok\n\n'); listeners.add(res); req.on('close', () => listeners.delete(res));
       return;
     }
+    if (what === 'optimize' && a && m === 'POST') return json(res, 200, { file: await lib.replaceFull(a, await readBody(req), (req.headers['content-type'] || '').split(';')[0]) });
     if (what === 'log' && m === 'POST') { log((await readBody(req)).toString('utf8').slice(0, 4000)); return json(res, 200, { ok: true }); }
     if (what === 'embeddings' && m === 'GET') return json(res, 200, await lib.embeddings());
     if (what === 'unindexed' && m === 'GET') return json(res, 200, await lib.unindexed());

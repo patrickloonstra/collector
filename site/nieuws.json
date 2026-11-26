@@ -1,1 +1,10 @@
-[]
+[
+ {
+  "id": "website",
+  "kind": "Nieuws",
+  "title": "Collector heeft een eigen pagina",
+  "text": "Met een demo die je kunt doorsturen en een overzicht van wat er per versie verandert.",
+  "link": "https://dev.patrickloonstra.nl/collector/",
+  "label": "Bekijk de pagina"
+ }
+]

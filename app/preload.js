@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('collectorApp', {
   showLog: () => ipcRenderer.invoke('show-log'),
   setOnboarded: () => ipcRenderer.invoke('set-onboarded'),
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
+  news: () => ipcRenderer.invoke('news-get'),
   update: {
     get: () => ipcRenderer.invoke('update-get'),
     check: () => ipcRenderer.invoke('update-check'),

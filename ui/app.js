@@ -437,7 +437,7 @@ function tagCounts() {
 
 // ---------- Menu en dialoog ----------
 function openMenu(anchor, entries) {
-  const m = $('#menu'); m.replaceChildren();
+  const m = $('#menu'); m.classList.remove('big'); m.replaceChildren();
   for (const e of entries) {
     if (e === '-') m.append(h('hr'));
     else if (e.head) m.append(h('div', { class: 'mhead', text: e.head }));
@@ -450,7 +450,7 @@ function openMenu(anchor, entries) {
   setTimeout(() => document.addEventListener('pointerdown', menuAway, { once: true }), 0);
 }
 function menuAway(e) { if ($('#menu').contains(e.target)) document.addEventListener('pointerdown', menuAway, { once: true }); else closeMenu(); }
-function closeMenu() { $('#menu').hidden = true; }
+function closeMenu() { $('#menu').hidden = true; $('#menu').classList.remove('big'); }
 
 function dialog({ title, text, value, ok = 'Opslaan', danger, placeholder }) {
   return new Promise(res => {
@@ -509,11 +509,11 @@ function renderSide() {
   if (tr.length) $('#storage').append(h('button', { type: 'button', class: 'btn-text', title: 'Maakt ' + fmtSize(bytes(tr)) + ' vrij', onclick: emptyTrash }, 'Prullenbak legen (' + fmtSize(bytes(tr)) + ')'));
 }
 /** Een collectie in de zijbalk: de laatste beelden erbij, zodat je ziet wat erin zit. */
-function colRow(c, cur) {
+function colRow(c, cur, onclick) {
   const its = colItems(c.id), strip = h('span', { class: 'colstrip' });
   for (const it of its.filter(visual).slice(0, 3)) strip.append(thumbEl(it));
   if (!strip.children.length) strip.append(h('span', { class: 'colstrip-empty' }));
-  return h('button', { type: 'button', class: 'nav-item colrow', 'data-drop': 'col:' + c.id, 'aria-current': cur ? 'true' : null, onclick: () => setView(colView(c)) },
+  return h('button', { type: 'button', class: 'nav-item colrow', 'data-drop': 'col:' + c.id, 'aria-current': cur ? 'true' : null, onclick: onclick || (() => setView(colView(c))) },
     strip, h('span', { class: 'label', text: c.name }), h('span', { class: 'count', text: its.length }));
 }
 function setColor(c) {
@@ -591,6 +591,12 @@ async function deleteCol(col) {
   if (sp.space === col) sp.space = null;
   setView({ kind: 'collections' });
 }
+function dayLabel(ts) {
+  const d = new Date(ts), now = new Date(), days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  if (days === 0) return 'Vandaag'; if (days === 1) return 'Gisteren';
+  const t = d.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
 function renderGrid() {
   const v = state.view;
   const overview = v.kind === 'collections';
@@ -598,7 +604,16 @@ function renderGrid() {
   const grid = $('#grid'); grid.replaceChildren();
   grid.style.setProperty('--col', state.size + 'px');
   $('#viewLibrary').classList.toggle('selecting', state.selected.size > 0 || v.kind === 'trash');
+  // Gesorteerd op datum: een kopje per dag, met een knop om die dag in één keer te selecteren.
+  const byDay = new Map(), dayOf = it => new Date(it.created).toDateString();
+  if ((state.sort === 'new' || state.sort === 'old') && !state.color && !state.q && !overview) for (const it of list) { const k = dayOf(it); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(it.id); }
+  let day = null;
   for (const it of list) {
+    if (byDay.size > 1 && dayOf(it) !== day) {
+      day = dayOf(it); const ids = byDay.get(day);
+      grid.append(h('div', { class: 'grp' }, h('strong', { text: dayLabel(it.created) }), h('span', { text: nItems(ids.length) }),
+        v.kind !== 'trash' && h('button', { type: 'button', class: 'btn-text', onclick: () => { const all = ids.every(i => state.selected.has(i)); ids.forEach(i => all ? state.selected.delete(i) : state.selected.add(i)); renderGrid(); } }, ids.every(i => state.selected.has(i)) ? 'Deselecteer' : 'Selecteer')));
+    }
     const card = h('button', { type: 'button', draggable: v.kind === 'trash' ? null : 'true', class: 'card' + (state.selected.has(it.id) ? ' sel' : ''), 'data-id': it.id, 'aria-label': it.title || (it.type === 'link' ? it.url : 'Afbeelding') });
     if (it.type === 'image' || it.remote) {
       const ph = h('span', { class: 'ph' }, thumbEl(it));
@@ -1081,6 +1096,119 @@ function openOnboarding() {
         step < pages.length - 1 ? h('button', { type: 'button', class: 'btn primary', id: 'obNext', onclick: () => { step++; draw(); } }, 'Volgende') : h('button', { type: 'button', class: 'btn', id: 'obNext', onclick: done }, 'Klaar'))));
   };
   box.hidden = false; draw();
+}
+
+// ---------- Meldingen: gestapelde kaartjes linksonder (update, aanbieding, nieuws) ----------
+const NOTES_GONE = 'collector-meldingen-weg', CHANGES = 'https://dev.patrickloonstra.nl/collector/wijzigingen/';
+const notes = { news: [], gone: new Set() };
+try { notes.gone = new Set(JSON.parse(localStorage.getItem(NOTES_GONE) || '[]')); } catch (e) { /* geen opslag */ }
+function allNotes() {
+  const out = [], st = updState, upd = window.collectorApp && window.collectorApp.update;
+  if (st && upd) {
+    if (st.status === 'ready') out.push({ id: 'upd-klaar-' + st.version, kind: 'Update', title: 'Collector ' + st.version + ' staat klaar', text: 'Herstart om bij te werken. Je bibliotheek blijft staan.', action: 'Herstart en werk bij', run: () => upd.restart(), link: CHANGES, label: 'Wat is er nieuw' });
+    else if (st.status === 'downloading') out.push({ id: 'upd-bezig-' + st.version, kind: 'Update', title: 'Collector ' + st.version + ' wordt opgehaald', text: st.progress + '% gedownload.', sticky: true });
+    else if (st.status === 'available') out.push({ id: 'upd-nieuw-' + st.version, kind: 'Update', title: 'Collector ' + st.version + ' is beschikbaar', text: st.blocked || 'Download en installeer de nieuwe versie.', action: st.blocked ? '' : 'Downloaden en installeren', run: () => upd.download(), link: CHANGES, label: 'Wat is er nieuw' });
+  }
+  for (const n of notes.news) out.push({ id: 'nieuws-' + n.id, kind: n.kind || 'Nieuws', title: n.title, text: n.text, link: n.link, label: n.label || 'Lees meer' });
+  return out;
+}
+function noteCard(n, i, total) {
+  const front = i === 0;
+  const el = h('div', { class: 'note' + (front ? ' front' : ''), 'aria-hidden': front ? null : 'true' },
+    h('div', { class: 'note-head' }, h('span', { class: 'note-kind', text: n.kind + (front && total > 1 ? ' · 1 van ' + total : '') }),
+      front && !n.sticky && h('button', { type: 'button', class: 'note-x', 'aria-label': 'Melding sluiten', title: 'Sluiten', onclick: () => dismissNote(n.id) }, '×')),
+    h('strong', { text: n.title }), h('p', { text: n.text }),
+    front && (n.action || n.link) && h('div', { class: 'note-acts' },
+      n.action && h('button', { type: 'button', class: 'note-btn', onclick: n.run }, n.action),
+      n.link && h('a', { class: 'btn-text', href: n.link, target: '_blank', rel: 'noopener' }, n.label)));
+  el.style.setProperty('--i', i);
+  return el;
+}
+function renderNotes() {
+  const box = $('#notes'); if (!box) return;
+  const list = allNotes().filter(n => !notes.gone.has(n.id));
+  $('#gearBadge').hidden = !list.length;
+  box.hidden = !list.length;
+  box.replaceChildren(...list.slice(0, 3).map((n, i) => noteCard(n, i, list.length)).reverse());
+}
+function dismissNote(id) {
+  notes.gone.add(id);
+  try { localStorage.setItem(NOTES_GONE, JSON.stringify([...notes.gone].slice(-80))); } catch (e) { /* geen opslag */ }
+  renderNotes();
+}
+async function loadNews() {
+  const app = window.collectorApp; if (!app || !app.news) return;
+  try { notes.news = await app.news(); } catch (e) { /* geen nieuws */ }
+  renderNotes();
+}
+
+// ---------- Rechtsklik op een beeld: snel aan een collectie toevoegen ----------
+function itemMenu(e, id) {
+  e.preventDefault();
+  const ids = state.selected.has(id) && state.selected.size > 1 ? [...state.selected] : [id];
+  const its = ids.map(i => state.items.find(x => x.id === i)).filter(x => x && !x.trashed); if (!its.length) return;
+  const m = $('#menu'); closeMenu(); m.classList.add('big');
+  const after = msg => { closeMenu(); if (msg) toast(msg); renderAll(); };
+  const n = its.length === 1 ? 'Beeld' : its.length + ' beelden';
+  const rows = libCols().map(c => {
+    const inAll = its.every(it => (it.cols || []).includes(c.id));
+    const row = colRow(c, false, async () => {
+      for (const it of its) { it.cols = inAll ? (it.cols || []).filter(x => x !== c.id) : [...new Set([...(it.cols || []), c.id])]; await DB.put('items', it); }
+      after(n + (inAll ? ' uit "' : ' in "') + c.name + (inAll ? '" gehaald' : '" gezet'));
+    });
+    row.classList.toggle('on', inAll); row.removeAttribute('data-drop');
+    return row;
+  });
+  const act = (label, run, cls) => h('button', { type: 'button', class: 'ctx-act ' + (cls || ''), onclick: () => { closeMenu(); run(); } }, label);
+  m.replaceChildren(
+    h('div', { class: 'mhead', text: its.length === 1 ? 'Toevoegen aan' : its.length + ' beelden toevoegen aan' }),
+    h('div', { class: 'ctx-rows' }, rows.length ? rows : h('div', { class: 'nav-empty', text: 'Je hebt nog geen collecties.' })),
+    h('button', { type: 'button', class: 'ctx-new', onclick: async () => { closeMenu(); const c = await newCol(); if (!c) return; await addToCol(c, ids); after(n + ' in "' + c.name + '" gezet'); } }, '+ Nieuwe collectie'),
+    h('hr'),
+    h('div', { class: 'ctx-acts' },
+      act(its.every(i => i.liked) ? '♥ Love weghalen' : '♥ Love', () => { const on = !its.every(i => i.liked); its.filter(i => !!i.liked !== on).forEach(i => toggleLike(i.id)); }),
+      act('Collect', () => collect(ids)),
+      its.length === 1 && act('Openen', () => openDetail(id)),
+      act('Weggooien', async () => { for (const it of its) { it.trashed = Date.now(); await DB.put('items', it); } state.selected.clear(); toast(nItems(its.length) + ' naar de prullenbak'); renderAll(); }, 'danger')));
+  m.hidden = false;
+  m.style.left = clamp(e.clientX, 8, innerWidth - m.offsetWidth - 8) + 'px';
+  m.style.top = clamp(e.clientY, 8, innerHeight - m.offsetHeight - 8) + 'px';
+  setTimeout(() => document.addEventListener('pointerdown', menuAway, { once: true }), 0);
+}
+function initItemMenu() {
+  document.addEventListener('contextmenu', e => {
+    const el = e.target.closest && e.target.closest('.card, .wtile, .node');
+    if (!el) return;
+    let id = el.dataset.id;
+    if (el.classList.contains('node')) { const n = sp.space && sp.space.nodes.find(x => x.id === id); id = n && n.item; }
+    if (id && state.view.kind !== 'trash') itemMenu(e, id);
+  });
+}
+
+// ---------- Ruimte besparen: grote beelden kleiner opslaan ----------
+const OPT_MIN = 200 * 1024, OPT_MAX_SIDE = 3200;
+const optCandidates = () => state.items.filter(i => i.type === 'image' && !i.trashed && !i.optimized && /^image\/(jpeg|png)$/.test(i.mime || '') && (i.size || 0) >= OPT_MIN);
+/** Slaat grote JPG- en PNG-beelden opnieuw op als WebP. Het origineel gaat naar de map Prullenbak, nooit weg. */
+async function optimizeAll(report) {
+  const list = optCandidates(); let saved = 0, done = 0, changed = 0;
+  for (const it of list) {
+    report('Bezig: ' + (++done) + ' van ' + list.length + (saved ? ' · ' + fmtSize(saved) + ' bespaard' : ''));
+    try {
+      const blob = await DB.get('fulls', it.id); if (!blob) continue;
+      const bmp = await loadBitmap(blob), w0 = bmp.width || bmp.naturalWidth, h0 = bmp.height || bmp.naturalHeight, sc = Math.min(1, OPT_MAX_SIDE / Math.max(w0, h0));
+      const c = h('canvas'); c.width = Math.round(w0 * sc); c.height = Math.round(h0 * sc);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); if (bmp.close) bmp.close();
+      const out = await new Promise(r => c.toBlob(r, 'image/webp', 0.86));
+      if (!out || out.type !== 'image/webp' || out.size > blob.size * 0.8) { it.optimized = 'overgeslagen'; await DB.put('items', it); continue; }
+      await DB.call('POST', 'optimize/' + encodeURIComponent(it.id), out, { 'Content-Type': 'image/webp' });
+      saved += blob.size - out.size; changed++;
+      Object.assign(it, { size: out.size, mime: 'image/webp', w: c.width, h: c.height, optimized: true });
+      await DB.put('items', it); dropUrls(it.id);
+    } catch (e) { logError('Optimaliseren mislukt voor ' + (it.title || it.id) + ': ' + (e.stack || e.message)); }
+    await new Promise(r => setTimeout(r, 0));
+  }
+  renderAll();
+  return { saved, changed, total: list.length };
 }
 
 // ---------- Herontdekken ----------
@@ -1844,23 +1972,26 @@ function initUpdates() {
   upd.onState(st => {
     updState = st;
     if (settingsDraw && document.querySelector('.settings')) settingsDraw(st);
-    const pill = $('#updPill'); pill.hidden = st.status !== 'ready'; $('#gearBadge').hidden = st.status !== 'ready';
-    if (st.status === 'ready') { pill.textContent = 'Versie ' + st.version + ' klaar · herstart'; if (!told) { told = true; toast('Collector ' + st.version + ' staat klaar. Herstart om bij te werken.', 6000); } }
+    renderNotes();
+    if (st.status === 'ready') { if (!told) { told = true; toast('Collector ' + st.version + ' staat klaar. Herstart om bij te werken.', 6000); } }
   });
-  $('#updPill').onclick = () => upd.restart();
+  upd.get().then(st => { updState = st; renderNotes(); });
+  loadNews(); addEventListener('focus', debounce(loadNews, 1500));
 }
 function openSettings() {
   const app = window.collectorApp, info = DB.info || {};
   const row = (label, ...kids) => h('div', { class: 'set-row' }, h('div', { class: 'set-label', text: label }), h('div', { class: 'set-body' }, kids));
   const btn = (label, run) => h('button', { type: 'button', class: 'btn small', onclick: run }, label);
   const body = h('div', { class: 'settings' });
+  const samples = libItems().filter(i => (i.tags || []).includes('voorbeeld'));
   if (DB.http) body.append(row('Bibliotheekmap',
     h('div', { class: 'set-path', text: info.library }),
     h('p', { class: 'set-help', text: 'Hier staan je beelden als gewone bestanden, in de map Beelden. Kies een andere map om je bibliotheek ergens anders te bewaren, bijvoorbeeld op een netwerkschijf. Een andere map kiezen verplaatst niets: je begint daar een eigen bibliotheek, of opent de bibliotheek die er al staat.' }),
     h('p', { class: 'set-help', text: nItems(libItems().length) + ' · ' + fmtSize(libItems().reduce((t, i) => t + (i.size || 0), 0)) + ' in deze bibliotheek' + (trashItems().length ? ', ' + nItems(trashItems().length) + ' in de prullenbak' : '') + '.' }),
     h('div', { class: 'set-actions' },
       app && btn('Toon in Finder', () => app.showLibrary()),
-      trashItems().length ? btn('Prullenbak legen', () => { close(); emptyTrash(); }) : null),
+      trashItems().length ? btn('Prullenbak legen', () => { close(); emptyTrash(); }) : null,
+      samples.length ? btn('Voorbeeldbeelden weggooien (' + samples.length + ')', async () => { for (const it of samples) { it.trashed = Date.now(); await DB.put('items', it); } close(); toast(nItems(samples.length) + ' naar de prullenbak'); renderAll(); }) : null),
     app && h('div', { class: 'set-actions' },
       btn('Kies andere map…', async () => { if (await app.chooseLibrary()) location.reload(); }),
       info.defaultLibrary && info.library !== info.defaultLibrary && btn('Terug naar standaardmap', async () => { if (await app.resetLibrary()) location.reload(); }))));
@@ -1886,6 +2017,24 @@ function openSettings() {
       upd && status, upd && h('label', { class: 'set-check' }, auto, ' Updates automatisch downloaden en installeren'), upd ? acts : null));
     if (upd) { settingsDraw = draw; upd.get().then(draw); }
   }
+  if (DB.http) {
+    const cand = optCandidates(), msg = h('p', { class: 'set-help' });
+    const say = () => { const c = optCandidates(); msg.textContent = c.length ? nItems(c.length) + ' kunnen kleiner (samen ' + fmtSize(c.reduce((t, i) => t + (i.size || 0), 0)) + ').' : 'Er valt nu niets te optimaliseren.'; go.hidden = !c.length; };
+    const go = btn('Beelden optimaliseren', async () => {
+      go.disabled = true;
+      const r = await optimizeAll(t => { msg.textContent = t; });
+      go.disabled = false; say();
+      msg.textContent = r.changed ? r.changed + (r.changed === 1 ? ' beeld' : ' beelden') + ' kleiner gemaakt, ' + fmtSize(r.saved) + ' bespaard. De originelen staan in de map Prullenbak van je bibliotheek; gooi ze daar weg om de ruimte echt vrij te maken.' : 'Geen beeld werd hier merkbaar kleiner van.';
+    });
+    body.append(row('Ruimte besparen',
+      h('p', { class: 'set-help', style: { margin: 0 }, text: 'Slaat grote JPG- en PNG-beelden opnieuw op als WebP, vrijwel zonder zichtbaar verschil. Beelden breder dan ' + OPT_MAX_SIDE + ' pixels worden verkleind. Het origineel wordt nooit gewist: het verhuist naar de map Prullenbak.' }),
+      msg, h('div', { class: 'set-actions' }, go)));
+    say();
+  }
+  const all = allNotes();
+  if (window.collectorApp) body.append(row('Nieuws',
+    all.length ? h('ul', { class: 'newslist' }, all.map(n => h('li', null, h('strong', { text: n.title }), h('p', { text: n.text }), n.link && h('a', { class: 'btn-text', href: n.link, target: '_blank', rel: 'noopener' }, n.label)))) : h('p', { class: 'set-help', style: { margin: 0 }, text: 'Geen nieuws op dit moment.' }),
+    h('div', { class: 'set-actions' }, h('a', { class: 'btn small', href: CHANGES, target: '_blank', rel: 'noopener', style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', marginLeft: 0 } }, 'Alle wijzigingen bekijken'))));
   body.append(row('Browserextensie',
     h('p', { class: 'set-help', style: { margin: 0 }, text: 'Bewaar een beeld vanaf elke website zonder de pagina te verlaten: rechtsklik op het beeld, of houd ⌥ ingedrukt en klik. Voor Zen, Firefox, Chrome, Arc, Brave en Edge.' }),
     h('div', { class: 'set-actions' }, h('a', { class: 'btn small', href: EXT_URL, target: '_blank', rel: 'noopener', style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', marginLeft: 0 } }, 'Extensie downloaden'), btn('Zo installeer je hem', () => { close(); openCaptureHelp(); }))));
@@ -2019,6 +2168,9 @@ function initEvents() {
       return;
     }
     if (typing || $('#dlg').open || km.open) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a' && !sp.space && detailId == null && !['collections', 'trash'].includes(state.view.kind)) {
+      e.preventDefault(); state.display = 'grid'; for (const it of visibleItems()) state.selected.add(it.id); return renderAll();
+    }
     if (!e.metaKey && !e.ctrlKey && !e.altKey) {
       const k = e.key.toLowerCase();
       if (k === 'f') { e.preventDefault(); return toggleFullscreen(); }
@@ -2090,7 +2242,7 @@ async function start() {
     if (n) setTimeout(() => toast(n === 1 ? 'Je space is nu een collectie met een canvas' : 'Je ' + n + ' spaces zijn nu collecties met een canvas'), 600);
   }
   for (const [id, e] of await DB.entries('embs')) AI.embs.set(id, e);
-  initEvents(); initSpaceEvents(); initDragDrop(); initWave(); initWall(); renderAll();
+  initEvents(); initSpaceEvents(); initDragDrop(); initWave(); initWall(); initItemMenu(); renderAll();
   initExtensionBridge();
   initLibraryInfo();
   const first = !!(DB.info && DB.info.firstRun);

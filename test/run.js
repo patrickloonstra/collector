@@ -13,7 +13,8 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed+
 
 (async () => {
   const src = process.argv[2] || path.join(__dirname, 'fixtures');
-  const imgs = fs.readdirSync(src).filter(f => /\.(jpe?g|png)$/i.test(f)).map(f => path.join(src, f));
+  const imgs = fs.readdirSync(src).filter(f => /\.(jpe?g|png)$/i.test(f) && !f.startsWith('groot')).map(f => path.join(src, f));
+  const big = path.join(__dirname, 'fixtures', 'groot-foto.png');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'collector-test-'));
   const library = path.join(tmp, 'Mijn Collector'), cache = path.join(tmp, 'cache');
   let srv = await start({ library, cache });
@@ -91,6 +92,20 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed+
   ok(await get('api/store/items/x', { method: 'DELETE' }) === 403, 'schrijven zonder eigen kenmerk wordt geweigerd');
   ok(await get('api/raw/..%2Fcollector.json') === 404 && await get('..%2F..%2Fpackage.json') === 404, 'geen toegang tot bestanden buiten de map');
   ok(await get('api/blob/fulls/..%2F..%2Fx') === 404, 'ongeldig id wordt geweigerd');
+
+  // ruimte besparen: groot beeld wordt kleiner opgeslagen, het origineel gaat naar de map Prullenbak
+  await p.setInputFiles('#file', big); await p.waitForFunction(() => document.querySelectorAll('.card').length === 8, null, { timeout: 30000 }); await p.waitForTimeout(400);
+  const before = fs.statSync(path.join(beelden, 'groot-foto.png')).size;
+  await p.click('#btnSettings'); await p.click('.set-actions >> text=Beelden optimaliseren');
+  await p.waitForFunction(() => /bespaard|merkbaar/.test(document.querySelector('.settings').textContent), null, { timeout: 60000 });
+  const after = fs.existsSync(path.join(beelden, 'groot-foto.webp')) ? fs.statSync(path.join(beelden, 'groot-foto.webp')).size : 0;
+  ok(after > 0 && after < before * 0.8 && !fs.existsSync(path.join(beelden, 'groot-foto.png')), 'optimaliseren: ' + Math.round(before / 1024) + ' kB wordt ' + Math.round(after / 1024) + ' kB (WebP)');
+  ok(fs.existsSync(path.join(bak, 'groot-foto.png')) && fs.statSync(path.join(bak, 'groot-foto.png')).size === before, 'het origineel staat onaangetast in de map Prullenbak');
+  ok(fs.readdirSync(beelden).filter(f => !f.startsWith('groot')).every(f => !f.endsWith('.webp')), 'kleine beelden blijven zoals ze zijn');
+  await p.click('#dlg >> text=Sluiten');
+  await p.click('.card[aria-label="groot foto"]'); await p.waitForFunction(() => { const i = document.querySelector('.detail-stage img'); return i && i.complete && i.naturalWidth === 1500; }, null, { timeout: 15000 });
+  ok(true, 'het geoptimaliseerde beeld opent gewoon'); await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+  await p.click('.card[aria-label="groot foto"]', { modifiers: ['Control'] }); await p.click('#selbar >> text=Verwijderen'); await p.waitForTimeout(300);
 
   // browserextensie -> app: beeld landt als bestand in de map en verschijnt vanzelf, met bron en titel
   const ext = { 'Content-Type': 'application/json', 'X-Collector': '1', Origin: 'moz-extension://abc' };

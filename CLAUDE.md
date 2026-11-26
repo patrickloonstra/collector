@@ -31,6 +31,9 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 - De gegevens van een beeld staan in een zwevend, inklapbaar venster rechts, nooit vastgeklikt aan de rand. Op het canvas opent het bij één klik.
 - Het venster heeft geen titelbalk. Linksonder staan alleen de bibliotheek, een plus (toevoegen) en een tandwiel (Instellingen). Status, opslag, back-up, versie, extensie en kopen staan in Instellingen.
 - De hoofdhandeling is beelden erin slepen; knoppen daarvoor blijven klein.
+- Meldingen (update, aanbieding, nieuws) zijn gestapelde kaartjes linksonder (`notes*`), weg te klikken en terug te lezen in Instellingen > Nieuws. Nieuws komt uit `site/nieuws.json` op de website; links mogen alleen naar patrickloonstra.nl wijzen.
+- Rechtsklik op een beeld geeft een ruim menu om het aan een collectie toe te voegen (`itemMenu`).
+- Ruimte besparen (`optimizeAll`) zet grote JPG's en PNG's om naar WebP; het origineel verhuist naar `Prullenbak/`.
 
 ## Beeldmerk en README
 

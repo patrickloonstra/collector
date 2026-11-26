@@ -1,10 +1,10 @@
 'use strict';
 /** Kleine handgetekende krabbels als patroon. Gebruikt voor het installatievenster en de kop van de README. */
 const INK = '#062b1e';
-function krabbels({ W, H, quiet = () => false, seed0 = 20261126, step = 34 }) {
+function krabbels({ W, H, quiet = () => false, seed0 = 20261126, step = 34, wobble = 1 }) {
   let seed = seed0;
   const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-  const r = (a, b) => a + rnd() * (b - a), j = v => v + r(-0.9, 0.9);
+  const r = (a, b) => a + rnd() * (b - a), j = v => v + r(-0.9, 0.9) * wobble;
   const P = pts => pts.map((p, i) => (i ? 'L' : 'M') + j(p[0]).toFixed(1) + ' ' + j(p[1]).toFixed(1)).join(' ');
   /** Vloeiende lijn door punten (handschrift-gevoel). */
   const S = pts => { let d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1); for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i]; d += ' Q' + j(a[0]).toFixed(1) + ' ' + j(a[1]).toFixed(1) + ' ' + ((a[0] + b[0]) / 2).toFixed(1) + ' ' + ((a[1] + b[1]) / 2).toFixed(1); } const l = pts[pts.length - 1]; return d + ' L' + l[0].toFixed(1) + ' ' + l[1].toFixed(1); };
