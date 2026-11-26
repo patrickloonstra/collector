@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Collector</title>
+<meta name="description" content="Verzamel, orden en vind beeldreferenties terug. Alles blijft in je eigen browser.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app" class="app">
+  <aside class="side" id="side">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Collector</span>
+    </div>
+    <button class="lib-switch" id="libSwitch" type="button" aria-haspopup="menu"></button>
+    <nav class="nav" id="nav" aria-label="Bibliotheek"></nav>
+    <div class="side-foot">
+      <div class="ai" id="ai"></div>
+      <div class="storage" id="storage"></div>
+      <div class="side-actions">
+        <button type="button" class="btn-text" id="btnExport">Back-up maken</button>
+        <button type="button" class="btn-text" id="btnImport">Terugzetten</button>
+      </div>
+      <p class="version"><span id="appver">Collector</span><br><span id="where">Alles staat lokaal in deze browser.</span></p>
+    </div>
+  </aside>
+  <div class="side-scrim" id="sideScrim"></div>
+
+  <main class="main" id="main">
+    <!-- Bibliotheek -->
+    <section class="view" id="viewLibrary">
+      <header class="top">
+        <button class="icon-btn only-mobile" id="btnMenu" type="button" aria-label="Menu"></button>
+        <label class="search">
+          <span class="search-icon" aria-hidden="true"></span>
+          <input id="q" type="search" placeholder="Zoek op titel, tag, notitie of bron" autocomplete="off" aria-label="Zoeken">
+          <kbd class="kbd-hint" title="Snelmenu">⌘K</kbd>
+        </label>
+        <div class="top-tools">
+          <button class="btn" id="btnRedo" type="button" title="Laat een willekeurig beeld uit je bibliotheek zien (R)">Herontdek</button>
+          <button class="btn primary" id="btnAdd" type="button">Toevoegen</button>
+        </div>
+      </header>
+      <div class="filters" id="filters"></div>
+      <div class="subtabs"><div class="tabs" id="tabs"></div></div>
+      <div class="grid-wrap" id="gridWrap">
+        <div class="featured" id="featured" hidden></div>
+        <div class="grid" id="grid"></div>
+        <div class="empty" id="empty" hidden></div>
+      </div>
+      <div class="selbar" id="selbar" hidden></div>
+      <div class="dock" id="dock">
+        <div class="mode" id="mode" role="group" aria-label="Weergave">
+          <button type="button" data-mode="library">Raster</button>
+          <button type="button" data-mode="collections">Collecties</button>
+        </div>
+        <div class="subtools" id="subtools">
+          <label class="size" title="Grootte van de beelden">
+            <span class="sr-only">Grootte</span>
+            <input id="size" type="range" min="90" max="420" step="10" value="200">
+          </label>
+          <button class="dock-btn" id="btnLook" type="button" title="Tussenruimte en hoeken" aria-label="Weergave-instellingen"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2 4.5h7M12.5 4.5H14M2 11.5h1.5M7 11.5h7"/><circle cx="10.75" cy="4.5" r="1.75"/><circle cx="5.25" cy="11.5" r="1.75"/></svg></button>
+          <label class="sort"><span class="sr-only">Sorteren</span>
+            <select id="sort">
+              <option value="new">Nieuwste eerst</option>
+              <option value="old">Oudste eerst</option>
+              <option value="title">Titel</option>
+              <option value="color">Kleur</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Space (vrij canvas) -->
+    <section class="view" id="viewSpace" hidden>
+      <header class="top space-top">
+        <button class="icon-btn only-mobile" id="btnMenu2" type="button" aria-label="Menu"></button>
+        <h1 class="space-title" id="spaceTitle"></h1>
+        <div id="spToggle"></div>
+        <div class="top-tools">
+          <button class="btn" id="spNote" type="button">Notitie</button>
+          <button class="btn" id="spTray" type="button">Uit bibliotheek</button>
+          <button class="btn" id="spFit" type="button">Passend</button>
+          <button class="btn" id="spPng" type="button">PNG</button>
+          <button class="btn" id="spMore" type="button" aria-label="Meer opties">Meer</button>
+        </div>
+      </header>
+      <div class="space-body">
+        <div class="viewport" id="viewport">
+          <div class="world" id="world"></div>
+          <div class="space-hint" id="spaceHint" hidden></div>
+          <div class="zoom">
+            <button type="button" id="zOut" aria-label="Uitzoomen">−</button>
+            <span id="zVal">100%</span>
+            <button type="button" id="zIn" aria-label="Inzoomen">+</button>
+          </div>
+        </div>
+        <aside class="tray" id="tray" hidden>
+          <div class="tray-head"><strong>Bibliotheek</strong><button class="icon-btn" id="trayClose" type="button" aria-label="Sluiten">×</button></div>
+          <div class="tray-grid" id="trayGrid"></div>
+        </aside>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="drop" id="drop" hidden><div class="drop-inner">Laat los om toe te voegen</div></div>
+<div class="detail" id="detail" hidden></div>
+<div class="redo" id="redo" hidden></div>
+<div class="redo ql" id="ql" hidden></div>
+<div class="km" id="km" hidden></div>
+<div class="menu" id="menu" hidden></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<dialog class="dlg" id="dlg"></dialog>
+<input type="file" id="file" accept="image/*" multiple hidden>
+<input type="file" id="fileImport" accept="application/json,.json" hidden>
+<script src="app.js"></script>
+</body>
+</html>

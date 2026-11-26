@@ -1,0 +1,48 @@
+name: Mac-app bouwen
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Test de MCP-koppeling
+        run: node test/mcp.js
+      - name: Bouw de app (Apple Silicon en Intel)
+        run: npm run dist
+      - name: Zelftest van de gebouwde app op een Mac
+        timeout-minutes: 3
+        run: |
+          T=$(mktemp -d)
+          codesign --verify --deep --strict dist/mac-arm64/Collector.app
+          COLLECTOR_SMOKE=1 COLLECTOR_LIBRARY="$T/lib" COLLECTOR_USERDATA="$T/ud" dist/mac-arm64/Collector.app/Contents/MacOS/Collector
+          ls -la "$T/lib" "$T/lib/Beelden"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Collector-mac
+          path: dist/*.dmg
+          if-no-files-found: error
+      - name: Zet de build klaar als download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(node -p "require('./package.json').version")
+          TAG="v$V-build${{ github.run_number }}"
+          gh release create "$TAG" dist/*.dmg --prerelease --target "$GITHUB_SHA" \
+            --title "Collector $V (build ${{ github.run_number }})" \
+            --notes "Automatische build van \`${GITHUB_REF_NAME}\`. Kies het arm64-bestand voor een Mac met Apple-chip (M1 en nieuwer), x64 voor een Intel-Mac. Zie README voor de eerste keer openen."
