@@ -2,6 +2,12 @@
 
 Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelichting bij de release.
 
+## 0.1.9
+
+- **Je assistent zet je aan in Instellingen:** onder AI-assistent kies je of Claude of Cursor in je bibliotheek mag kijken, en apart of hij mag ordenen. Het staat standaard uit. Had je de koppeling al aangesloten, zet hem hier dan aan.
+- Achter "Zo sluit je hem aan" staan de stappen per programma, met een knop om de instelling te kopiëren, en voorbeelden van wat je kunt vragen.
+- De vinkjes in Instellingen staan weer naast hun tekst.
+
 ## 0.1.8
 
 - **Een collectie delen:** open een collectie en kies Delen. Je krijgt een polaroid voor social (1080 × 1350), een verhaal (1080 × 1920) of een PDF op A4 met de bron per beeld. Onderin staat de naam van de collectie, in de hoek het aantal beelden, de datum, de hoofdkleuren en een kleine C.

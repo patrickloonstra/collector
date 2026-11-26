@@ -958,6 +958,40 @@ function bookmarkletHref() {
   const code = "(()=>{const s=[...document.images].filter(i=>i.naturalWidth>=300&&i.naturalHeight>=200).map(i=>({u:(i.currentSrc||i.src).replace(/([?&]name=)\\w+/,'$1large'),a:i.naturalWidth*i.naturalHeight})).filter(x=>/^https?:/.test(x.u)).sort((a,b)=>b.a-a.a).map(x=>x.u);const p=new URLSearchParams();p.set('src',location.href);p.set('title',document.title);[...new Set(s)].slice(0,12).forEach(x=>p.append('add',x));window.open(" + JSON.stringify(base) + "+'?'+p,'_blank')})()";
   return 'javascript:' + encodeURIComponent(code);
 }
+/** Wat de assistent nodig heeft om Collector te vinden: het programma, het script en de omgeving. */
+function assistantConfig() {
+  const m = (DB.info || {}).mcp || {}, env = { ELECTRON_RUN_AS_NODE: '1', ...(location.port && location.port !== '4317' ? { COLLECTOR_URL: location.origin + '/' } : {}) };
+  const q = t => /^[\w@%+=:,./-]+$/.test(t) ? t : "'" + t.replace(/'/g, "'\\''") + "'";
+  return { json: JSON.stringify({ mcpServers: { collector: { command: m.command, args: [m.script], env } } }, null, 2),
+    shell: 'claude mcp add collector ' + Object.entries(env).map(([k, v]) => '--env ' + k + '=' + q(v)).join(' ') + ' -- ' + q(m.command || '') + ' ' + q(m.script || '') };
+}
+const ASSISTANT_ASKS = [
+  'Bouw deze pagina in de sfeer van mijn collectie Najaar.',
+  'Bekijk wat nog in geen collectie zit en stel een indeling voor.',
+  'De klant wil rustig, warm en ambachtelijk. Zoek wat past en maak er een collectie van.',
+  'Ik had ooit een poster met een grote paarse cirkel. Waar is die?',
+  'Geef alle beelden zonder titel een korte titel en twee tags.',
+  'Maak een lijst van alle bronnen in mijn collectie Typografie.',
+];
+function openAssistantHelp() {
+  const cfg = assistantConfig(), said = h('p', { class: 'extalt' });
+  const copy = (label, what, textOut) => h('button', { type: 'button', class: 'btn small', onclick: async () => { try { await navigator.clipboard.writeText(textOut); said.textContent = what + ' gekopieerd.'; } catch (e) { said.textContent = 'Kopiëren lukte niet.'; } } }, label);
+  const step = (n, ...t) => h('li', null, h('b', { text: n + ' ' }), t);
+  openPanel('Je assistent aansluiten', 'Je doet dit één keer per programma. Daarna kan je assistent in je bibliotheek kijken zolang Collector open staat. Of hij ook mag ordenen kies je in Instellingen.',
+    h('div', { class: 'extbox' },
+      h('div', { class: 'extcols' },
+        h('div', null, h('h4', { text: 'Claude (de app op je Mac)' }), h('ol', null,
+          step('1.', copy('Kopieer de instelling', 'Instelling', cfg.json)),
+          step('2.', 'Open in Claude: Instellingen > Ontwikkelaar > Config bewerken.'),
+          step('3.', 'Plak de tekst in het bestand dat opent en bewaar het. Staat er al iets in, zet dan alleen het stuk "collector" bij de andere onder "mcpServers".'),
+          step('4.', 'Sluit Claude helemaal af en open het opnieuw.'))),
+        h('div', null, h('h4', { text: 'Claude Code en Cursor' }), h('ol', null,
+          step('Claude Code:', copy('Kopieer de opdracht', 'Opdracht', cfg.shell), ' en plak hem in de Terminal.'),
+          step('Cursor:', copy('Kopieer de instelling', 'Instelling', cfg.json), ' en plak hem in het bestand .cursor/mcp.json in je thuismap.')),
+          h('p', { text: 'Zet je ordenen later aan of uit, start je assistent dan opnieuw. Anders ziet hij de wijziging niet.' }))),
+      said,
+      h('div', { class: 'asks' }, h('h4', { text: 'Wat je daarna kunt vragen' }), h('ul', null, ASSISTANT_ASKS.map(t => h('li', { text: t }))))));
+}
 function openCaptureHelp() {
   const a = h('a', { class: 'btn bml', href: bookmarkletHref(), onclick: e => { e.preventDefault(); toast('Sleep deze knop naar je bladwijzerbalk'); } }, '+ Collector');
   const step = (n, t) => h('li', null, h('b', { text: n + ' ' }), t);
@@ -2241,17 +2275,18 @@ function openSettings() {
     all.length ? h('ul', { class: 'newslist' }, all.map(n => h('li', null, h('strong', { text: n.title }), h('p', { text: n.text }), n.link && h('a', { class: 'btn-text', href: n.link, target: '_blank', rel: 'noopener' }, n.label)))) : h('p', { class: 'set-help', style: { margin: 0 }, text: 'Geen nieuws op dit moment.' }),
     h('div', { class: 'set-actions' }, h('a', { class: 'btn small', href: CHANGES, target: '_blank', rel: 'noopener', style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', marginLeft: 0 } }, 'Alle wijzigingen bekijken'))));
   if (DB.http && info.mcp) {
-    const may = h('input', { type: 'checkbox', id: 'setMcpWrite' }), said = h('p', { class: 'set-help' });
-    const env = () => ({ ELECTRON_RUN_AS_NODE: '1', ...(location.port && location.port !== '4317' ? { COLLECTOR_URL: location.origin + '/' } : {}), ...(may.checked ? { COLLECTOR_MCP_WRITE: '1' } : {}) });
-    const q = t => /^[\w@%+=:,./-]+$/.test(t) ? t : "'" + t.replace(/'/g, "'\\''") + "'";
-    const copy = async (what, textOut) => { try { await navigator.clipboard.writeText(textOut); said.textContent = what + ' gekopieerd.'; } catch (e) { said.textContent = 'Kopiëren lukte niet.'; } };
+    const on = h('input', { type: 'checkbox', id: 'setMcpOn' }), may = h('input', { type: 'checkbox', id: 'setMcpWrite' }), more = h('div', { class: 'set-actions' });
+    const put = async () => { await DB.put('meta', { on: on.checked, write: on.checked && may.checked }, 'mcp'); show(); };
+    const show = () => { may.disabled = !on.checked; if (!on.checked) may.checked = false; more.hidden = !on.checked; };
+    on.onchange = put; may.onchange = put;
+    DB.get('meta', 'mcp').then(v => { on.checked = !!(v && v.on); may.checked = !!(v && v.on && v.write); show(); });
+    more.append(btn('Zo sluit je hem aan', () => { close(); openAssistantHelp(); }));
     body.append(row('AI-assistent',
-      h('p', { class: 'set-help', style: { margin: 0 }, text: 'Collector heeft zelf geen AI die je beelden ergens heen stuurt. Je eigen assistent (Claude, Cursor) kan wel in je bibliotheek kijken via MCP. Dat loopt via deze Mac, en alleen terwijl Collector open staat.' }),
-      h('label', { class: 'set-check' }, may, ' De assistent mag ook ordenen: tags, titels en collecties. Weggooien kan hij nooit.'),
-      h('div', { class: 'set-actions' },
-        btn('Kopieer voor Claude Code', () => copy('Opdracht voor de Terminal', 'claude mcp add collector ' + Object.entries(env()).map(([k, v]) => '--env ' + k + '=' + q(v)).join(' ') + ' -- ' + q(info.mcp.command) + ' ' + q(info.mcp.script))),
-        btn('Kopieer voor Claude Desktop of Cursor', () => copy('Instelling', JSON.stringify({ mcpServers: { collector: { command: info.mcp.command, args: [info.mcp.script], env: env() } } }, null, 2)))),
-      said));
+      h('p', { class: 'set-help', style: { margin: 0 }, text: 'Collector stuurt je beelden zelf nergens heen. Gebruik je Claude of Cursor, dan kun je die wel in je bibliotheek laten kijken. Dat loopt via deze Mac, en alleen terwijl Collector open staat.' }),
+      h('label', { class: 'set-check' }, on, ' Mijn assistent mag in deze bibliotheek kijken'),
+      h('label', { class: 'set-check' }, may, ' Hij mag ook ordenen: tags, titels en collecties. Weggooien kan hij nooit.'),
+      more));
+    show();
   }
   body.append(row('Browserextensie',
     h('p', { class: 'set-help', style: { margin: 0 }, text: 'Bewaar een beeld vanaf elke website zonder de pagina te verlaten: rechtsklik op het beeld, of houd ⌥ ingedrukt en klik. Voor Zen, Firefox, Chrome, Arc, Brave en Edge.' }),

@@ -23,7 +23,13 @@ function client(env) {
   await fetch(srv.url + 'api/blob/fulls/a1', { method: 'PUT', headers: { 'X-Collector': '1', 'Content-Type': 'image/png', 'X-Name': 'warm.png' }, body: Buffer.from('iVBORw0KGgo=', 'base64') });
   await fetch(srv.url + 'api/blob/thumbs/a1', { method: 'PUT', headers: { 'X-Collector': '1' }, body: Buffer.from('RIFF') });
 
+  const setMcp = v => fetch(srv.url + 'api/meta/mcp', { method: 'PUT', headers: { 'X-Collector': '1' }, body: JSON.stringify(v) });
   let c = client({ COLLECTOR_URL: srv.url });
+  await c.call('initialize', {});
+  let off = (await c.call('tools/call', { name: 'list_collections', arguments: {} })).result;
+  ok(off.isError && /staat uit/.test(off.content[0].text), 'de koppeling staat standaard uit, met uitleg waar je hem aanzet');
+  c.close(); await setMcp({ on: true });
+  c = client({ COLLECTOR_URL: srv.url });
   const init = await c.call('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } });
   ok(init.result.serverInfo.name === 'collector' && init.result.protocolVersion === '2025-06-18', 'initialize');
   c.notify('notifications/initialized');
@@ -38,12 +44,16 @@ function client(env) {
   r = (await c.call('tools/call', { name: 'get_item', arguments: { id: 'a1' } })).result;
   ok(r.content.length === 2 && r.content[1].type === 'image', 'get_item geeft gegevens en een miniatuur');
   r = (await c.call('tools/call', { name: 'add_tags', arguments: { id: 'a1', tags: ['x'] } }));
-  ok(r.error && r.error.code === -32602, 'schrijven is standaard niet beschikbaar');
+  ok(r.result.isError && /alleen kijken/.test(r.result.content[0].text), 'ordenen kan pas als de gebruiker het aanzet');
   ok((await c.call('nope', {})).error.code === -32601, 'onbekende methode geeft een nette fout');
   c.close();
 
-  c = client({ COLLECTOR_URL: srv.url, COLLECTOR_MCP_WRITE: '1' });
+  await setMcp({ on: true, write: true });
+  c = client({ COLLECTOR_URL: srv.url });
   await c.call('initialize', {});
+  ok((await c.call('tools/list', {})).result.tools.some(t => t.name === 'add_to_collection'), 'met ordenen aan ziet de agent de tools om te ordenen');
+  r = await fetch(srv.url + 'api/meta/mcp', { method: 'PUT', headers: { 'X-Collector': '1', 'X-Collector-Client': 'mcp' }, body: '{"on":true,"write":true}' });
+  ok(r.status === 403, 'een agent kan zijn eigen rechten niet aanpassen');
   const rev0 = (await (await fetch(srv.url + 'api/info')).json()).rev;
   r = (await c.call('tools/call', { name: 'add_tags', arguments: { id: 'a2', tags: ['Dashboard'] } })).result;
   r = (await c.call('tools/call', { name: 'add_link', arguments: { url: 'https://example.com/inspiratie', title: 'Voorbeeld', collection: "Landingspagina's" } })).result;

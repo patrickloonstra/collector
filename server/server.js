@@ -82,8 +82,14 @@ async function start(opts) {
     const parts = url.pathname.split('/').slice(2).map(decodeURIComponent);
     const [what, a, b] = parts, m = req.method;
     // Wijzigingen van buiten de interface (MCP) tellen we, zodat de interface weet dat ze opnieuw moet laden.
-    if (m !== 'GET' && m !== 'HEAD' && req.headers['x-collector-client'] === 'mcp') rev++;
-    if (what === 'info' && m === 'GET') return json(res, 200, { app: 'collector', library: lib.dir, id: lib.data.id, rev, ...(opts.onInfo ? opts.onInfo() : {}) });
+    // De gebruiker bepaalt in Instellingen of een AI-assistent (MCP) mag kijken en of hij mag ordenen. Standaard staat het uit.
+    const mc = lib.getMeta('mcp') || {}, viaMcp = req.headers['x-collector-client'] === 'mcp';
+    if (viaMcp && what !== 'info') {
+      if (!mc.on) throw fail(403, 'mcp-uit');
+      if (m !== 'GET' && m !== 'HEAD' && (!mc.write || what === 'meta')) throw fail(403, 'mcp-alleen-lezen');
+    }
+    if (m !== 'GET' && m !== 'HEAD' && viaMcp) rev++;
+    if (what === 'info' && m === 'GET') return json(res, 200, { app: 'collector', library: lib.dir, id: lib.data.id, rev, assistant: { on: !!mc.on, write: !!(mc.on && mc.write) }, ...(opts.onInfo ? opts.onInfo() : {}) });
     if (what === 'files' && m === 'GET') return json(res, 200, Object.fromEntries(Object.keys(lib.data.files).map(id => [id, lib.pathOf(id)])));
     if (what === 'store' && STORES.includes(a)) {
       if (m === 'GET' && !b) return json(res, 200, lib.all(a));

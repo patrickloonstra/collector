@@ -709,3 +709,12 @@ html[data-shell="mac"] .top { padding-top: 12px; }
 .share-prev { display: grid; place-items: center; min-height: 300px; background: var(--side); border-radius: 10px; padding: 18px; }
 .share-canvas { display: block; max-width: 100%; height: auto; max-height: 56vh; width: auto; border: 1px solid var(--line); }
 .share .set-help { margin: 10px 0 0; }
+
+/* Assistent aansluiten */
+.extcols ol .btn { height: 26px; padding: 0 10px; }
+.extcols ol li { line-height: 1.5; }
+.asks { width: 100%; border-top: 1px solid var(--line); padding-top: 14px; }
+.asks h4 { margin: 0 0 6px; font-size: 13px; }
+.asks ul { margin: 0; padding-left: 18px; font-size: 13px; display: grid; gap: 4px; color: var(--muted); }
+.dlg .set-check input { width: auto; padding: 0; flex: none; margin: 0; }
+.set-check:has(input:disabled) { opacity: .5; }

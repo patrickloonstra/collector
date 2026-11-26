@@ -34,7 +34,7 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 - Meldingen (update, aanbieding, nieuws) zijn gestapelde kaartjes linksonder (`notes*`), weg te klikken en terug te lezen in Instellingen > Nieuws. Nieuws komt uit `site/nieuws.json` op de website; links mogen alleen naar patrickloonstra.nl wijzen.
 - Rechtsklik op een beeld geeft een ruim menu om het aan een collectie toe te voegen (`itemMenu`).
 - Delen (`openShare`, `drawPolaroid`, `sharePdf`) maakt van een collectie een polaroid, een verhaal of een PDF. Alles wordt in de app zelf getekend; de PDF is met de hand opgebouwd (`buildPdf`), zonder bibliotheek.
-- Geen AI die beelden naar buiten stuurt. Ordenen met AI loopt via de MCP-server (`mcp/server.js`) en de assistent van de gebruiker zelf; de koppeling staat in Instellingen > AI-assistent.
+- Geen AI die beelden naar buiten stuurt. Ordenen met AI loopt via de MCP-server (`mcp/server.js`) en de assistent van de gebruiker zelf; de gebruiker zet dat aan in Instellingen > AI-assistent (kijken en ordenen apart, standaard uit; bewaard als `mcp` in de bibliotheek en afgedwongen door de motor in `server/server.js`). De uitleg is `openAssistantHelp`.
 - Ruimte besparen (`optimizeAll`) zet grote JPG's en PNG's om naar WebP; het origineel verhuist naar `Prullenbak/`.
 
 ## Beeldmerk en README

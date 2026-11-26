@@ -3,18 +3,22 @@
 /**
  * MCP-server voor Collector: laat Claude, Cursor en andere agents in je bibliotheek zoeken.
  * Praat met de draaiende Collector-app op deze computer; er gaat niets naar buiten.
- * Standaard alleen lezen. Schrijven en ordenen (tags, titels, collecties, notities, links) staat aan met COLLECTOR_MCP_WRITE=1.
+ * De gebruiker zet de koppeling aan in Collector (Instellingen > AI-assistent) en kiest daar of de agent ook mag ordenen.
  * Weggooien kan een agent nooit.
  */
 const readline = require('readline');
 const BASE = (process.env.COLLECTOR_URL || 'http://127.0.0.1:4317/').replace(/\/?$/, '/');
-const WRITE = process.env.COLLECTOR_MCP_WRITE === '1';
 const VERSION = '0.2.0';
 
 async function api(method, url, body) {
   let r;
   try { r = await fetch(BASE + 'api/' + url, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { 'X-Collector': '1', 'X-Collector-Client': 'mcp', 'Content-Type': 'application/json' } }); }
   catch { throw new Error('Collector draait niet. Open de Collector-app en probeer het opnieuw.'); }
+  if (r.status === 403) {
+    const why = await r.json().then(j => j.error, () => '');
+    if (why === 'mcp-uit') throw new Error('De koppeling met Collector staat uit. Vraag de gebruiker hem aan te zetten in Collector: Instellingen > AI-assistent.');
+    if (why === 'mcp-alleen-lezen') throw new Error('Je mag in Collector alleen kijken. Wil de gebruiker dat je ordent, dan zet hij dat aan in Collector: Instellingen > AI-assistent.');
+  }
   if (!r.ok) throw new Error('Collector gaf een fout (' + r.status + ').');
   return r;
 }
@@ -164,15 +168,16 @@ async function addItem(fields, collection) {
   await api('PUT', 'store/items/' + item.id, item);
   return item.id;
 }
-const visible = () => tools.filter(t => WRITE || !t.write);
+/** Ordenen laten we alleen zien als de gebruiker het in de app heeft aangezet. De app zelf weigert het anders ook. */
+const mayWrite = async () => { try { return !!(await (await api('GET', 'info')).json()).assistant.write; } catch { return false; } };
 
 async function handle(msg) {
   const { id, method, params = {} } = msg;
-  if (method === 'initialize') return { protocolVersion: params.protocolVersion || '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'collector', version: VERSION }, instructions: 'Collector is de lokale bibliotheek met ontwerpinspiratie van de gebruiker. Gebruik search_library om referenties te vinden en get_item of view_items om beelden te bekijken.' + (WRITE ? ' Je mag ordenen: bekijk eerst wat er is (list_collections, search_library met unsorted), stel bij twijfel een indeling voor en voer die dan uit met add_to_collection, add_tags en set_details. Weggooien kan niet.' : '') };
+  if (method === 'initialize') return { protocolVersion: params.protocolVersion || '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'collector', version: VERSION }, instructions: 'Collector is de lokale bibliotheek met ontwerpinspiratie van de gebruiker. Gebruik search_library om referenties te vinden en get_item of view_items om beelden te bekijken. Heeft de gebruiker ordenen aangezet, bekijk dan eerst wat er is (list_collections, search_library met unsorted), stel een indeling voor en voer die na akkoord uit met add_to_collection, add_tags en set_details. Weggooien kan niet.' };
   if (method === 'ping') return {};
-  if (method === 'tools/list') return { tools: visible().map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) };
+  if (method === 'tools/list') { const w = await mayWrite(); return { tools: tools.filter(t => w || !t.write).map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) }; }
   if (method === 'tools/call') {
-    const t = visible().find(x => x.name === params.name);
+    const t = tools.find(x => x.name === params.name);
     if (!t) throw Object.assign(new Error('Onbekende tool: ' + params.name), { code: -32602 });
     try { return await t.run(params.arguments || {}); }
     catch (e) { return { content: [{ type: 'text', text: e.message }], isError: true }; }
