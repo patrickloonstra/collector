@@ -38,6 +38,8 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 - Dubbele beelden (`dupGroups`, `dupIndex`, `cleanDups`): elk beeld krijgt een vingerafdruk van het bestand (`hash`, SHA-256 van het bestand bij toevoegen) en van wat er te zien is (`ph`). Hetzelfde bestand opnieuw toevoegen wordt overgeslagen; wat al dubbel is staat in de zijbalk onder "Dubbele beelden" met een driehoekje. Opruimen gaat altijd naar de prullenbak.
 - Eén bibliotheek: er is geen kiezer meer. Onderin de zijbalk staan "Instellingen" (voluit) en de plus. De code voor meer bibliotheken bestaat nog; wisselen kan alleen via het snelmenu als er meer dan één is.
 - Love geeft een rimpeling over het beeld (`ripple`) en een hartje.
+- Snelle weergave (spatie) kan inzoomen (`qlZoomInit`): wiel of knijpen op de plek van de muis, slepen, plus en min onderin, 0 terug.
+- Soort beeld (`renderSoort`, keuzelijst `#soort` naast sorteren): filtert op de soorten uit `AI_LABELS` die het lokale beeldmodel als tag zet.
 - Ruimte besparen (`optimizeAll`) zet grote JPG's en PNG's om naar WebP; het origineel verhuist naar `Prullenbak/`.
 
 ## Beeldmerk en README

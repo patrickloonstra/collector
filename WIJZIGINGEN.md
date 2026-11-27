@@ -2,6 +2,11 @@
 
 Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelichting bij de release.
 
+## 0.1.12
+
+- **Inzoomen in de snelle weergave:** open een beeld met spatie en zoom met het wiel of met knijpen, op de plek van je muis. Onderin staan plus en min; ook de toetsen + en − werken, en 0 zet het beeld terug. Ingezoomd sleep je het beeld rond. Dubbelklik zoomt in en weer uit.
+- **Filteren op soort beeld:** naast de sorteerknop onderin kies je een soort, zoals typografie, fotografie, poster of illustratie. De soort komt van het beeldmodel dat op je eigen Mac draait; staat dat uit, dan biedt de lijst aan het aan te zetten.
+
 ## 0.1.11
 
 - **Dubbele beelden:** voeg je een bestand toe dat er al in staat, dan wordt het overgeslagen en zegt de app hoeveel dat er waren. Staan er al dubbele in je bibliotheek, ook hetzelfde beeld in een andere maat, dan verschijnt in de zijbalk "Dubbele beelden" met een driehoekje. Daar zie je per groep welk beeld blijft en ruim je de rest in één keer op. Ze gaan naar de prullenbak; tags, collecties en hartjes verhuizen mee naar het beeld dat blijft.

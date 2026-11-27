@@ -740,3 +740,13 @@ html[data-shell="mac"] .top { padding-top: 12px; }
 .foot-btn .badge { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-left: auto; }
 /* Rimpeling iets voller */
 .ripple i { border-width: 3px; background: radial-gradient(closest-side, rgba(255,255,255,0) 82%, rgba(255,255,255,.22) 96%, rgba(255,255,255,0)); }
+
+/* Inzoomen in de snelle weergave */
+.ql .redo-stage { overflow: hidden; touch-action: none; cursor: zoom-in; }
+.ql .redo-stage.zoomed { cursor: grab; }
+.ql .redo-stage.zoomed:active { cursor: grabbing; }
+.ql .redo-stage img { will-change: transform; user-select: none; -webkit-user-drag: none; }
+.ql-zoom { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: rgba(28,28,28,.82); border: 1px solid rgba(255,255,255,.12); color: #fff; }
+.ql-zoom button { border: 0; background: none; color: inherit; height: 30px; min-width: 30px; border-radius: 999px; font-size: 16px; line-height: 1; display: grid; place-items: center; }
+.ql-zoom button:hover { background: rgba(255,255,255,.14); }
+.ql-zoom .ql-pct { font-size: 12.5px; min-width: 54px; font-variant-numeric: tabular-nums; }

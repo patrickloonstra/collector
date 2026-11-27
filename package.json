@@ -1,7 +1,7 @@
 {
   "name": "collector",
   "productName": "Collector",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Verzamel, orden en vind beeldreferenties terug. Je bestanden blijven gewone bestanden in je eigen map.",
   "private": true,
   "main": "app/main.js",

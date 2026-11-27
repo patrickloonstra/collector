@@ -491,6 +491,7 @@ function visibleItems() {
   else if (v.kind === 'liked') a = a.filter(i => i.liked);
   else if (v.kind === 'tag') a = a.filter(i => allTags(i).includes(v.tag));
   else if (v.kind === 'col') a = a.filter(i => (i.cols || []).includes(v.id));
+  if (state.soort && v.kind !== 'trash') a = a.filter(i => allTags(i).includes(state.soort));
   const toks = state.q.toLowerCase().split(/\s+/).filter(Boolean);
   let ranked = false;
   if (toks.length) {
@@ -744,6 +745,7 @@ function renderGrid() {
   f.replaceChildren(h('h1', { text: title }), h('span', { class: 'n', text: count }));
   if (col) f.append(viewToggle(col, 'col'));
   if (state.color && !overview) f.append(h('span', { class: 'chip' }, h('i', { style: { background: state.color } }), 'Kleur ' + state.color, h('button', { type: 'button', 'aria-label': 'Kleurfilter wissen', onclick: () => setColor(null) }, '×')));
+  if (state.soort && !overview && v.kind !== 'trash' && v.kind !== 'dups') f.append(h('span', { class: 'chip' }, state.soort[0].toUpperCase() + state.soort.slice(1), h('button', { type: 'button', 'aria-label': 'Soort wissen', onclick: () => { state.soort = ''; renderAll(); } }, '×')));
   if (state.q && !overview) f.append(h('span', { class: 'chip' }, '"' + state.q + '"', h('button', { type: 'button', 'aria-label': 'Zoekterm wissen', onclick: () => { state.q = ''; $('#q').value = ''; renderGrid(); } }, '×')));
   const act = (label, run, cls) => f.append(h('button', { type: 'button', class: 'btn small ' + (cls || ''), onclick: run }, label));
   if (col) act('Delen', () => openShare(col));
@@ -1994,8 +1996,48 @@ function quickLook(id) {
   else if (it.remote) { stage = h('img', { alt: '', src: it.remote }); stage.referrerPolicy = 'no-referrer'; }
   else stage = linkCard(it);
   const box = $('#ql');
-  box.replaceChildren(h('div', { class: 'redo-stage', onclick: closeQuickLook }, stage), h('div', { class: 'ql-cap', text: [it.title, it.w ? it.w + ' × ' + it.h : '', domainOf(it.source || '')].filter(Boolean).join(' · ') }));
+  const st = h('div', { class: 'redo-stage' }, stage);
+  box.replaceChildren(st, h('div', { class: 'ql-cap', text: [it.title, it.w ? it.w + ' × ' + it.h : '', domainOf(it.source || '')].filter(Boolean).join(' · ') }));
   box.hidden = false;
+  qlZoomInit(st, stage, it.type === 'image' || !!it.remote);
+}
+/** Inzoomen in de snelle weergave: scrollen of knijpen op de plek van de muis, slepen om te schuiven, en plus en min onderin. */
+function qlZoomInit(st, img, can) {
+  const z = ql.zoom = { k: 1, x: 0, y: 0, moved: false };
+  const pct = h('button', { type: 'button', class: 'ql-pct', title: 'Terug naar passend (0)', onclick: e => { e.stopPropagation(); set(1, 0, 0, true); } }, '100%');
+  const apply = smooth => {
+    img.style.transition = smooth ? 'transform .2s cubic-bezier(.2,.7,.2,1)' : 'none';
+    img.style.transform = 'translate(' + z.x.toFixed(1) + 'px,' + z.y.toFixed(1) + 'px) scale(' + z.k.toFixed(3) + ')';
+    pct.textContent = Math.round(z.k * 100) + '%'; st.classList.toggle('zoomed', z.k > 1.001);
+  };
+  const set = (k, x, y, smooth) => {
+    z.k = clamp(k, 1, 8);
+    const r = st.getBoundingClientRect(), mx = Math.max(0, (img.offsetWidth * z.k - r.width) / 2 + 40), my = Math.max(0, (img.offsetHeight * z.k - r.height) / 2 + 40);
+    z.x = z.k === 1 ? 0 : clamp(x, -mx, mx); z.y = z.k === 1 ? 0 : clamp(y, -my, my); apply(smooth);
+  };
+  /** Zoomt zo dat het punt onder de muis op zijn plek blijft. */
+  const zoomAt = (k, cx, cy, smooth) => {
+    k = clamp(k, 1, 8);
+    const r = st.getBoundingClientRect(), px = cx - (r.left + r.width / 2), py = cy - (r.top + r.height / 2), f = k / z.k;
+    set(k, px - (px - z.x) * f, py - (py - z.y) * f, smooth);
+  };
+  ql.zoomBy = f => { const r = st.getBoundingClientRect(); zoomAt(z.k * f, r.left + r.width / 2, r.top + r.height / 2, true); };
+  ql.zoomReset = () => set(1, 0, 0, true);
+  if (can) {
+    st.addEventListener('wheel', e => { e.preventDefault(); zoomAt(z.k * Math.exp(-clamp(e.deltaY, -60, 60) * (e.ctrlKey ? 0.012 : 0.004)), e.clientX, e.clientY, false); }, { passive: false });
+    st.addEventListener('pointerdown', e => { if (e.button !== 0) return; z.drag = { x: e.clientX, y: e.clientY }; z.moved = false; st.setPointerCapture(e.pointerId); });
+    st.addEventListener('pointermove', e => {
+      const d = z.drag; if (!d) return;
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) z.moved = true;
+      if (z.moved && z.k > 1) { set(z.k, z.x + e.clientX - d.x, z.y + e.clientY - d.y, false); d.x = e.clientX; d.y = e.clientY; }
+    });
+    st.addEventListener('dblclick', e => { z.k > 1 ? set(1, 0, 0, true) : zoomAt(2.5, e.clientX, e.clientY, true); });
+    $('#ql').append(h('div', { class: 'ql-zoom', onclick: e => e.stopPropagation() },
+      h('button', { type: 'button', title: 'Uitzoomen (−)', 'aria-label': 'Uitzoomen', onclick: () => ql.zoomBy(1 / 1.4) }, '−'), pct,
+      h('button', { type: 'button', title: 'Inzoomen (+)', 'aria-label': 'Inzoomen', onclick: () => ql.zoomBy(1.4) }, '+')));
+  }
+  // Een klik naast het slepen sluit; ingezoomd sluit alleen een klik buiten het beeld.
+  st.addEventListener('pointerup', e => { const was = z.drag; z.drag = null; if (!was && can) return; if (z.moved) return; if (z.k > 1 && document.elementFromPoint(e.clientX, e.clientY) === img) return; closeQuickLook(); });
 }
 function closeQuickLook() { ql.id = null; $('#ql').hidden = true; $('#ql').replaceChildren(); }
 
@@ -2501,12 +2543,25 @@ function initLibraryInfo() {
 }
 
 // ---------- Alles tekenen ----------
+/** De keuzelijst "soort beeld" onderin: typografie, fotografie, poster… Het lokale beeldmodel bepaalt de soort per beeld. */
+function renderSoort() {
+  const sel = $('#soort'); if (!sel) return;
+  const kinds = AI_LABELS.map(l => l[1]), count = new Map();
+  for (const it of libItems()) for (const t of allTags(it)) if (kinds.includes(t)) count.set(t, (count.get(t) || 0) + 1);
+  if (state.soort && !count.has(state.soort)) state.soort = '';
+  const opt = (value, label) => h('option', { value, text: label });
+  sel.replaceChildren(opt('', 'Alle soorten'), ...kinds.filter(k => count.has(k)).sort((a, b) => count.get(b) - count.get(a)).map(k => opt(k, k[0].toUpperCase() + k.slice(1) + ' (' + count.get(k) + ')')),
+    ...(!AI.on && !DEMO ? [opt('__aan', count.size ? 'Soorten bijwerken…' : 'Soorten herkennen…')] : []));
+  sel.value = state.soort || '';
+  sel.onchange = () => { if (sel.value === '__aan') { sel.value = state.soort || ''; return aiAsk(); } state.soort = sel.value; renderGrid(); };
+}
 function renderAll() {
   const inSpace = state.view.kind === 'space';
   $('#viewLibrary').hidden = inSpace; $('#viewSpace').hidden = !inSpace;
   renderSide();
   if (inSpace) renderSpace(); else { sp.space = null; renderGrid(); }
   $('#sort').value = state.sort;
+  renderSoort();
   renderAi();
 }
 
@@ -2615,6 +2670,9 @@ function initEvents() {
     if (ql.id) {
       const i = lastVisible.findIndex(x => x.id === ql.id);
       if (e.key === ' ') { e.preventDefault(); closeQuickLook(); }
+      else if ((e.key === '+' || e.key === '=') && ql.zoomBy) { e.preventDefault(); ql.zoomBy(1.4); }
+      else if ((e.key === '-' || e.key === '_') && ql.zoomBy) { e.preventDefault(); ql.zoomBy(1 / 1.4); }
+      else if (e.key === '0' && ql.zoomReset) ql.zoomReset();
       else if (e.key === 'ArrowRight' && lastVisible[i + 1]) quickLook(lastVisible[i + 1].id);
       else if (e.key === 'ArrowLeft' && lastVisible[i - 1]) quickLook(lastVisible[i - 1].id);
       else if (e.key === 'Enter') { const id = ql.id; closeQuickLook(); openDetail(id); }

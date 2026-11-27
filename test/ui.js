@@ -144,6 +144,31 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   ok(await p.$$eval('.wtile .ripple i', e => e.length) >= 3, 'een like geeft een rimpeling over het beeld');
   if (shots) await p.screenshot({ path: path.join(shots, 'rimpel.png') });
   await p.keyboard.press('l'); await p.waitForTimeout(300);
+  // Soort beeld: keuzelijst onderin; zonder het beeldmodel biedt hij aan de soorten te herkennen
+  ok((await p.$$eval('#soort option', e => e.map(x => x.textContent))).join('|') === 'Alle soorten|Soorten herkennen…', 'onderin staat een keuzelijst voor de soort beeld');
+  { const its = await (await fetch(srv.url + 'api/store/items', { headers: { 'X-Collector': '1' } })).json(), one = its.find(i => i.type === 'image' && !i.trashed);
+    one.auto = [...(one.auto || []), 'typografie']; await fetch(srv.url + 'api/store/items/' + one.id, { method: 'PUT', headers: { 'X-Collector': '1' }, body: JSON.stringify(one) }); }
+  await p.reload(); await p.waitForFunction(() => [...document.querySelectorAll('#soort option')].some(o => o.textContent.startsWith('Typografie (1)')), null, { timeout: 20000 });
+  await p.waitForFunction(() => !document.querySelector('#splash'), null, { timeout: 10000 }); await p.waitForTimeout(500);
+  await p.selectOption('#soort', 'typografie'); await p.waitForTimeout(400);
+  ok((await p.textContent('#filters')).includes('1 item') && (await p.textContent('#filters .chip')).includes('Typografie'), 'kiezen van een soort filtert de beelden en toont wat er gekozen is');
+  await p.click('[aria-label="Soort wissen"]'); await p.waitForTimeout(300);
+  // Snelle weergave: inzoomen met het wiel, plus en min, slepen en terug
+  await p.click('#mode >> text=Ontdek'); await p.waitForSelector('.wtile'); await p.waitForTimeout(300);
+  { const at = await p.evaluate(() => { for (const t of document.querySelectorAll('.wtile')) { const r = t.getBoundingClientRect(); if (r.left > 300 && r.top > 120 && r.bottom < innerHeight - 140 && r.right < innerWidth - 20) return [r.left + r.width / 2, r.top + r.height / 2]; } const r = document.querySelector('.wtile').getBoundingClientRect(); return [Math.max(320, r.left + 40), Math.max(200, Math.min(innerHeight - 200, r.top + 40))]; });
+    await p.mouse.move(at[0] - 30, at[1] - 30); await p.mouse.move(at[0], at[1], { steps: 3 }); }
+  await p.waitForTimeout(200); await p.keyboard.press(' '); await p.waitForSelector('#ql .ql-zoom');
+  await p.mouse.move(760, 400); await p.mouse.wheel(0, -300); await p.waitForTimeout(200);
+  const pct = async () => parseInt(await p.textContent('.ql-pct'), 10);
+  const z1 = await pct(); ok(z1 > 100, 'scrollen in de snelle weergave zoomt in (' + z1 + '%)');
+  await p.click('.ql-zoom button[aria-label="Inzoomen"]'); await p.waitForTimeout(300);
+  const z2 = await pct(); ok(z2 > z1, 'de plus zoomt verder in (' + z2 + '%)');
+  if (shots) await p.screenshot({ path: path.join(shots, 'zoom.png') });
+  await p.mouse.move(760, 400); await p.mouse.down(); await p.mouse.move(700, 360, { steps: 3 }); await p.mouse.up(); await p.waitForTimeout(150);
+  ok(await p.$eval('#ql', e => !e.hidden) && await pct() === z2, 'slepen schuift het beeld en sluit de weergave niet');
+  await p.keyboard.press('-'); await p.waitForTimeout(250); ok(await pct() < z2, 'de mintoets zoomt uit');
+  await p.keyboard.press('0'); await p.waitForTimeout(250); ok(await pct() === 100, '0 zet het beeld terug op passend');
+  await p.keyboard.press(' '); await p.waitForTimeout(200); ok(await p.$eval('#ql', e => e.hidden), 'spatie sluit de snelle weergave');
   await p.click('#nav >> text=Najaar'); await p.waitForTimeout(400); await p.click('#filters >> text=Delen'); await p.waitForSelector('.share-canvas.polaroid');
   ok(await p.$eval('.share-canvas', c => c.width === 1080 && c.height === 1350), 'Delen tekent een polaroid van 1080 × 1350');
   if (shots) await p.screenshot({ path: path.join(shots, 'delen.png') });
