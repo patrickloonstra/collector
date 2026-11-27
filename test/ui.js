@@ -23,7 +23,19 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await p.setInputFiles('#file', imgs);
   await p.waitForSelector('.wtile', { timeout: 60000 });
   await p.waitForTimeout(900);
-  ok(await p.$eval('#gridWrap', e => e.hidden) && (await p.$$eval('.wtile', e => e.length)) >= 10, 'met ' + imgs.length + ' beelden opent Ontdek: een wand die het scherm vult (' + (await p.$$eval('.wtile', e => e.length)) + ' tegels)');
+  // De wand vult het scherm als elke kolom die in beeld is van boven tot onder doorloopt en de kolommen samen de hele breedte beslaan.
+  // Het aantal tegels zelf zegt weinig: bij weinig beelden maakt de wand bewust grote tegels, en hoeveel er dan passen hangt af van hun verhoudingen.
+  const vol = await p.evaluate(() => {
+    const w = document.querySelector('#wall').getBoundingClientRect(), cols = new Map();
+    for (const t of document.querySelectorAll('.wtile')) {
+      const r = t.getBoundingClientRect(); if (r.right <= w.left || r.left >= w.right) continue;
+      const c = cols.get(Math.round(r.left)) || { l: r.left, r: r.right, t: Infinity, b: -Infinity }; c.t = Math.min(c.t, r.top); c.b = Math.max(c.b, r.bottom); cols.set(Math.round(r.left), c);
+    }
+    const cs = [...cols.values()];
+    return { n: cs.length, hoog: cs.every(c => c.t <= w.top && c.b >= w.bottom), breed: cs.length > 0 && Math.min(...cs.map(c => c.l)) <= w.left + 80 && Math.max(...cs.map(c => c.r)) >= w.right - 80, soorten: new Set([...document.querySelectorAll('.wtile')].map(t => t.dataset.id)).size };
+  });
+  const tegels = await p.$$eval('.wtile', e => e.length);
+  ok(await p.$eval('#gridWrap', e => e.hidden) && vol.n >= 2 && vol.hoog && vol.breed && tegels >= imgs.length && vol.soorten === imgs.length, 'met ' + imgs.length + ' beelden opent Ontdek: een wand die het scherm vult (' + vol.n + ' kolommen in beeld, ' + tegels + ' tegels, alle ' + vol.soorten + ' beelden doen mee)');
   ok((await p.getAttribute('#mode button[data-mode="wall"]', 'aria-pressed')) === 'true', 'onderin staat Ontdek aan');
   // drijven: zonder iets te doen bewegen de tegels
   await p.mouse.move(100, 500); // buiten de wand (zijbalk)
