@@ -718,3 +718,25 @@ html[data-shell="mac"] .top { padding-top: 12px; }
 .asks ul { margin: 0; padding-left: 18px; font-size: 13px; display: grid; gap: 4px; color: var(--muted); }
 .dlg .set-check input { width: auto; padding: 0; flex: none; margin: 0; }
 .set-check:has(input:disabled) { opacity: .5; }
+
+/* Dubbele beelden */
+.nav-item .warn { display: inline-flex; color: #b26a00; margin-right: 7px; flex: none; }
+.dupnote { color: var(--muted); font-size: 13px; }
+.dupmark { position: absolute; left: 8px; top: 8px; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: rgba(20,18,16,.72); color: #fff; }
+.dupmark.keep { background: #fff; color: #062b1e; border: 1px solid rgba(6,43,30,.25); }
+
+/* Weggooien: het beeld krimpt weg */
+.wtile.gone img, .wtile.gone > .linkcard, #grid .card.gone { scale: 0.2; opacity: 0; transition: scale .25s cubic-bezier(.5,0,.8,.3), opacity .25s ease-in; }
+.wtile.gone .heart { opacity: 0; }
+/* Love: een rimpeling over het beeld */
+.ripple { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 3; border-radius: var(--radius, 0px); }
+.ripple i { position: absolute; border-radius: 50%; border: 2px solid rgba(255,255,255,.9); box-shadow: 0 0 0 1px rgba(0,0,0,.10), inset 0 0 26px rgba(255,255,255,.35), 0 0 18px rgba(255,255,255,.25); will-change: transform, opacity; }
+
+/* Onderin de zijbalk: Instellingen en toevoegen, altijd in beeld */
+.side-bottom { flex: none; border-top: 1px solid var(--line); padding-top: 8px; margin-top: 2px; }
+.foot-btn { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--ink); font-weight: 500; text-align: left; }
+.foot-btn:hover { background: var(--hover); }
+.foot-btn svg { color: var(--muted); flex: none; }
+.foot-btn .badge { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-left: auto; }
+/* Rimpeling iets voller */
+.ripple i { border-width: 3px; background: radial-gradient(closest-side, rgba(255,255,255,0) 82%, rgba(255,255,255,.22) 96%, rgba(255,255,255,0)); }

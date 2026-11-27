@@ -40,7 +40,7 @@ Daarna werkt Collector zichzelf bij. Hij kijkt bij elke start of er een nieuwere
 | ⌘K | Snelmenu: acties, collecties, tags, beelden, zoeken op kleur |
 | + en − | Zoomen (of ⌘ + scrollen) |
 | N | Nieuwe notitie |
-| R | Weggooien: het beeld onder je muis gaat naar de prullenbak |
+| X | Weggooien: het beeld onder je muis gaat naar de prullenbak |
 | H | Herontdek een willekeurig beeld |
 | ⌘, | Instellingen |
 

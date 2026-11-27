@@ -237,13 +237,109 @@ async function analyse(blob) {
   const sx = s.getContext('2d', { willReadFrequently: true });
   sx.drawImage(bmp, 0, 0, 48, 48);
   const palette = paletteOf(sx.getImageData(0, 0, 48, 48).data);
+  const ph = lookHash(bmp);
   if (bmp.close) bmp.close();
-  return { w, h: hh, thumb: thumb || blob, palette };
+  return { w, h: hh, thumb: thumb || blob, palette, ph };
+}
+
+// ---------- Dubbele beelden herkennen ----------
+/** Vingerafdruk van het bestand zelf: twee keer precies hetzelfde bestand geeft dezelfde uitkomst. */
+async function fileHash(blob) {
+  try { return [...new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()))].map(b => b.toString(16).padStart(2, '0')).join(''); }
+  catch (e) { return ''; }
+}
+/** Vingerafdruk van wat er te zien is (64 bits): hetzelfde beeld in een andere maat of een ander bestandstype lijkt hierop. */
+function lookHash(src) {
+  try {
+    const mid = h('canvas'); mid.width = mid.height = 64;
+    const mx = mid.getContext('2d'); mx.imageSmoothingQuality = 'high'; mx.fillStyle = '#fff'; mx.fillRect(0, 0, 64, 64); mx.drawImage(src, 0, 0, 64, 64);
+    const c = h('canvas'); c.width = 9; c.height = 8;
+    const x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingQuality = 'high'; x.drawImage(mid, 0, 0, 9, 8);
+    const d = x.getImageData(0, 0, 9, 8).data, lum = i => d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114;
+    let out = '';
+    for (let r = 0; r < 8; r++) { let byte = 0; for (let k = 0; k < 8; k++) byte = (byte << 1) | (lum(r * 9 + k) > lum(r * 9 + k + 1) ? 1 : 0); out += byte.toString(16).padStart(2, '0'); }
+    return out;
+  } catch (e) { return ''; }
+}
+const bits32 = n => { n -= (n >>> 1) & 0x55555555; n = (n & 0x33333333) + ((n >>> 2) & 0x33333333); return (((n + (n >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24; };
+let dupMemo = { key: null, groups: [] }, keepers = new Set();
+/** Groepen van beelden die dubbel zijn: precies hetzelfde bestand, of hetzelfde beeld in een andere maat. Het beste beeld staat vooraan. */
+function dupGroups() {
+  const its = libItems().filter(i => i.type === 'image' && (i.hash || i.ph));
+  const key = state.libId + '|' + its.map(i => i.id + (i.hash ? 'h' : '') + (i.ph ? 'p' : '')).join();
+  if (dupMemo.key === key) return dupMemo.groups;
+  const root = its.map((_, i) => i), find = i => { while (root[i] !== i) i = root[i] = root[root[i]]; return i; }, join = (a, b) => { root[find(a)] = find(b); };
+  const seen = new Map();
+  its.forEach((it, i) => { if (!it.hash) return; if (seen.has(it.hash)) join(i, seen.get(it.hash)); else seen.set(it.hash, i); });
+  // Op het oog: bijna dezelfde vingerafdruk én dezelfde verhouding. Egale beelden doen niet mee, die lijken te snel op elkaar.
+  const look = its.map((it, i) => { if (!it.ph || !it.w) return null; const hi = parseInt(it.ph.slice(0, 8), 16), lo = parseInt(it.ph.slice(8), 16), n = bits32(hi) + bits32(lo); return n < 10 || n > 54 ? null : { i, hi, lo, ar: it.w / it.h }; }).filter(Boolean);
+  for (let a = 0; a < look.length; a++) for (let b = a + 1; b < look.length; b++) {
+    const p = look[a], q = look[b];
+    if (bits32((p.hi ^ q.hi) >>> 0) + bits32((p.lo ^ q.lo) >>> 0) <= 2 && Math.abs(p.ar - q.ar) / p.ar < 0.03) join(p.i, q.i);
+  }
+  const sets = new Map();
+  its.forEach((it, i) => { const r = find(i); if (!sets.has(r)) sets.set(r, []); sets.get(r).push(it); });
+  const worth = it => (it.w || 0) * (it.h || 0);
+  const groups = [...sets.values()].filter(g => g.length > 1).map(g => ({ items: g.sort((a, b) => worth(b) - worth(a) || (b.size || 0) - (a.size || 0) || a.created - b.created), exact: g.every(i => i.hash && i.hash === g[0].hash) }));
+  groups.sort((a, b) => b.items[0].created - a.items[0].created);
+  keepers = new Set(groups.map(g => g.items[0].id));
+  dupMemo = { key, groups };
+  return groups;
+}
+/** Geeft beelden die nog geen vingerafdruk hebben er een, rustig op de achtergrond. Daarna weet de zijbalk of er dubbele zijn. */
+let dupBusy = false;
+async function dupIndex() {
+  if (dupBusy || DEMO) return; dupBusy = true;
+  try {
+    const todo = libItems().filter(i => i.type === 'image' && (!i.hash || !i.ph)); let n = 0;
+    for (const it of todo) {
+      if (it.trashed) continue;
+      try {
+        if (!it.hash) it.hash = DB.http ? (await (await DB.call('GET', 'hash/' + encodeURIComponent(it.id))).json()).hash : await fileHash(await DB.get('fulls', it.id));
+        if (!it.ph) { const tb = await DB.get('thumbs', it.id); if (tb) { const bmp = await loadBitmap(tb); it.ph = lookHash(bmp); if (bmp.close) bmp.close(); } }
+        if (it.hash || it.ph) await DB.put('items', it);
+      } catch (e) { /* dit beeld slaan we over; de rest gaat door */ }
+      if (++n % 150 === 0) { renderSide(); await new Promise(r => setTimeout(r, 30)); }
+    }
+    if (n) renderSide();
+  } finally { dupBusy = false; }
+}
+function warnIcon() {
+  const s = h('span', { class: 'warn', 'aria-hidden': 'true' });
+  s.innerHTML = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M8 2.2 14.3 13H1.7Z"/><path d="M8 6.4v3.2"/><path d="M8 11.3v.1"/></svg>';
+  return s;
+}
+/** Houdt per groep het beste beeld; tags, collecties, hartje, titel, notitie en bron van de andere gaan mee. De rest gaat naar de prullenbak. */
+async function cleanDups() {
+  const groups = dupGroups(), n = groups.reduce((t, g) => t + g.items.length - 1, 0);
+  if (!n) return;
+  const loose = groups.filter(g => !g.exact).length;
+  if (!await dialog({ title: 'Dubbele opruimen?', text: (n === 1 ? '1 beeld gaat' : n + ' beelden gaan') + ' naar de prullenbak. Per groep blijft het grootste beeld staan, met alle tags en collecties van de andere.' + (loose ? ' In ' + (loose === 1 ? '1 groep' : loose + ' groepen') + ' is het hetzelfde beeld in een andere maat: kijk die even na.' : '') + ' Je haalt ze altijd terug uit de prullenbak.', ok: 'Opruimen' })) return;
+  for (const g of groups) {
+    const [keep, ...rest] = g.items;
+    for (const o of rest) {
+      keep.tags = [...new Set([...(keep.tags || []), ...(o.tags || [])])]; keep.cols = [...new Set([...(keep.cols || []), ...(o.cols || [])])];
+      keep.liked = keep.liked || o.liked; keep.title = keep.title || o.title; keep.note = keep.note || o.note; keep.source = keep.source || o.source;
+      o.trashed = Date.now(); await DB.put('items', o);
+    }
+    await DB.put('items', keep);
+  }
+  state.selected.clear(); toast(nItems(n) + ' naar de prullenbak'); setView({ kind: 'all' });
 }
 
 // ---------- Toevoegen ----------
 let askedPersist = false;
 async function addImage(blob, meta = {}) {
+  // Staat precies dit bestand er al, dan komt het er niet nog eens bij. Sleep je het in een collectie, dan gaat het bestaande beeld daarheen.
+  const hash = await fileHash(blob);
+  if (hash && !meta.adopt) {
+    const twin = libItems().find(i => i.hash === hash);
+    if (twin) {
+      const add = curCols().filter(c => !(twin.cols || []).includes(c));
+      if (add.length) { twin.cols = [...(twin.cols || []), ...add]; await DB.put('items', twin); }
+      throw Object.assign(new Error('dit beeld staat al in je bibliotheek'), { kind: 'dup', twin });
+    }
+  }
   let info;
   try { info = await analyse(blob); } catch (e) { throw Object.assign(new Error('kan dit beeld niet lezen'), { kind: 'decode' }); }
   const item = {
@@ -252,6 +348,8 @@ async function addImage(blob, meta = {}) {
     cols: curCols(), tags: meta.tags || [], auto: autoTags({ palette: info.palette, w: info.w, h: info.h, mime: blob.type, name: meta.name }),
     palette: info.palette, w: info.w, h: info.h, mime: blob.type, size: blob.size, created: Date.now(),
   };
+  if (hash) item.hash = hash;
+  if (info.ph) item.ph = info.ph;
   if (item.source) { const d = domainOf(item.source); if (d) item.auto.push(d); }
   if (meta.adopt) await DB.call('POST', 'adopt', JSON.stringify({ id: item.id, name: meta.adopt }), { 'Content-Type': 'application/json' });
   else await DB.put('fulls', blob, item.id, { name: meta.name || item.title });
@@ -290,15 +388,17 @@ async function addUrl(url, meta = {}) {
 }
 async function addFiles(files, extra) {
   const imgs = [...files].filter(f => f.type.startsWith('image/'));
-  const out = [];
+  const out = []; let dups = 0;
   for (const f of imgs) {
     try { out.push(await addImage(f, { name: f.name, title: (f.name || '').replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').replace(/^image$/i, ''), ...extra })); }
     catch (e) {
+      if (e.kind === 'dup') { dups++; continue; }
       const name = f.name || 'bestand';
       toast(e.kind === 'decode' ? name + ': dit bestandstype kan Collector nog niet openen' : name + ' bewaren mislukt: ' + e.message, 6000);
       logError('Toevoegen mislukt: ' + name + ' (' + (f.type || 'onbekend type') + ', ' + f.size + ' bytes): ' + (e.stack || e.message));
     }
   }
+  if (dups) { toast(dups === 1 ? '1 beeld stond al in je bibliotheek en is overgeslagen' : dups + ' beelden stonden al in je bibliotheek en zijn overgeslagen', 6000); if (!out.length) renderAll(); }
   return out;
 }
 /** Verwerkt een drop of plakactie. Geeft de nieuwe items terug. */
@@ -318,6 +418,7 @@ async function ingest(dt) {
   return out;
 }
 function afterAdd(items) {
+  dupIndex();
   if (!items.length) return;
   toast(items.length === 1 ? 'Toegevoegd' : items.length + ' items toegevoegd');
   renderAll();
@@ -383,6 +484,7 @@ function sortItems(a) {
 }
 function visibleItems() {
   const v = state.view;
+  if (v.kind === 'dups') return dupGroups().flatMap(g => g.items);
   let a = v.kind === 'trash' ? trashItems() : libItems();
   if (v.kind === 'unsorted') a = a.filter(i => !(i.cols || []).length);
   else if (v.kind === 'bookmarks') a = a.filter(hasSource);
@@ -484,7 +586,6 @@ function setView(v) {
 function renderSide() {
   const lib = state.libs.find(l => l.id === state.libId);
   const items = libItems();
-  $('#libSwitch').replaceChildren(h('span', null, lib.name, h('small', { text: items.length + (items.length === 1 ? ' item' : ' items') })));
   const v = state.view;
   const item = (label, count, view, cur, extra) => h('button', { type: 'button', class: 'nav-item', 'data-drop': view.kind === 'col' || view.kind === 'space' ? 'col:' + view.id : null, 'aria-current': cur ? 'true' : null, onclick: () => setView(view) }, extra, h('span', { class: 'label', text: label }), count != null && h('span', { class: 'count', text: count }));
   const nav = $('#nav'); nav.replaceChildren(
@@ -493,6 +594,7 @@ function renderSide() {
     item('Inbox', items.filter(i => !(i.cols || []).length).length, { kind: 'unsorted' }, v.kind === 'unsorted'),
     item('Favorieten', items.filter(i => i.liked).length, { kind: 'liked' }, v.kind === 'liked'),
     item('Prullenbak', trashItems().length, { kind: 'trash' }, v.kind === 'trash'),
+    ...(dupGroups().length ? [item('Dubbele beelden', dupGroups().reduce((t, g) => t + g.items.length - 1, 0), { kind: 'dups' }, v.kind === 'dups', warnIcon())] : []),
     h('h2', null, 'Collecties', h('button', { type: 'button', title: 'Nieuwe collectie', 'aria-label': 'Nieuwe collectie', onclick: async () => { const c = await newCol(); if (c) setView({ kind: 'col', id: c.id }); } }, '+')),
     ...(libCols().length ? libCols().map(c => colRow(c, (v.kind === 'col' || v.kind === 'space') && v.id === c.id)) : [h('div', { class: 'nav-empty', text: 'Groepeer beelden per onderwerp, als raster of op een vrij canvas.' })]),
   );
@@ -523,7 +625,7 @@ function setColor(c) {
 }
 function libMenu() {
   const lib = state.libs.find(l => l.id === state.libId);
-  openMenu($('#libSwitch'), [
+  openMenu($('#btnSettings'), [
     { head: 'Bibliotheken' },
     ...state.libs.map(l => ({ label: l.name, on: l.id === state.libId, run: () => { state.libId = l.id; saveMeta(); setView({ kind: 'all' }); } })),
     '-',
@@ -620,12 +722,13 @@ function renderGrid() {
       card.append(ph);
     } else card.append(linkCard(it));
     card.append(h('span', { class: 'check' }), h('span', { class: 'cap', text: it.title || domainOf(it.source || '') || '' }));
+    if (v.kind === 'dups') card.append(h('span', { class: 'dupmark' + (keepers.has(it.id) ? ' keep' : ''), text: keepers.has(it.id) ? 'blijft' : 'dubbel' }));
     if (v.kind !== 'trash') card.append(h('span', { class: 'heart' + (it.liked ? ' on' : ''), title: 'Favoriet (⌥-klik)', text: '♥' }));
     if (AI.scores && AI.scores.has(it.id)) card.dataset.score = AI.scores.get(it.id).toFixed(3);
     grid.append(card);
   }
   // Ontdek (drijvende wand) of Raster
-  const useWall = state.display === 'wall' && !overview && v.kind !== 'trash' && list.length >= WALL_MIN && !state.selected.size;
+  const useWall = state.display === 'wall' && !overview && v.kind !== 'trash' && v.kind !== 'dups' && list.length >= WALL_MIN && !state.selected.size;
   $('#gridWrap').hidden = useWall; $('#wall').hidden = !useWall;
   if (useWall) wallShow(list); else wallStop();
   grid.querySelectorAll('.card').forEach((c, i) => { if (i < 36) c.style.setProperty('--i', i); });
@@ -635,7 +738,8 @@ function renderGrid() {
   // Kop en actieve filters
   const f = $('#filters'), col = v.kind === 'col' && state.cols.find(c => c.id === v.id);
   if (v.kind === 'col' && !col) return setView({ kind: 'collections' });
-  const title = { tag: '#' + v.tag, bookmarks: 'Bladwijzers', unsorted: 'Inbox', liked: 'Favorieten', trash: 'Prullenbak', collections: 'Collecties', col: col && col.name }[v.kind] || 'Alles';
+  if (v.kind === 'dups' && !list.length) return setView({ kind: 'all' });
+  const title = { tag: '#' + v.tag, bookmarks: 'Bladwijzers', unsorted: 'Inbox', liked: 'Favorieten', trash: 'Prullenbak', dups: 'Dubbele beelden', collections: 'Collecties', col: col && col.name }[v.kind] || 'Alles';
   const count = v.kind === 'collections' ? libCols().length + (libCols().length === 1 ? ' collectie' : ' collecties') : nItems(list.length);
   f.replaceChildren(h('h1', { text: title }), h('span', { class: 'n', text: count }));
   if (col) f.append(viewToggle(col, 'col'));
@@ -647,6 +751,7 @@ function renderGrid() {
     { label: 'Naam wijzigen', run: async () => { const name = await dialog({ title: 'Naam wijzigen', value: col.name }); if (name) { col.name = name; await DB.put('cols', col); renderAll(); } } },
     { label: 'Collectie verwijderen', danger: true, run: () => deleteCol(col) }]));
   if (v.kind === 'trash' && list.length) act('Prullenbak legen', emptyTrash, 'danger');
+  if (v.kind === 'dups') { f.append(h('span', { class: 'dupnote', text: 'Per groep blijft het grootste beeld staan; tags, collecties en hartjes gaan mee.' })); act('Dubbele opruimen', cleanDups); }
   if (v.kind === 'collections') act('Nieuwe collectie', async () => { const c = await newCol(); if (c) setView({ kind: 'col', id: c.id }); });
 
   // Subtabs, sorteren en grootte
@@ -1053,6 +1158,7 @@ function initExtensionBridge() {
     window.postMessage({ type: 'collector-ext-done', id: d.id, ok }, location.origin);
   });
   document.documentElement.dataset.collectorReady = '1';
+  setTimeout(dupIndex, 1200);
 }
 
 // ---------- Openingsscherm: logo, naam en een begroeting in een willekeurige taal ----------
@@ -1648,11 +1754,58 @@ async function importAll(file) {
 /** Gooit beelden weg: ze gaan naar de prullenbak en zijn daar altijd terug te halen. */
 async function trashIds(ids) {
   const its = ids.map(id => state.items.find(i => i.id === id)).filter(i => i && !i.trashed); if (!its.length) return;
+  const gone = new Set(its.map(i => i.id)), inView = detailId == null && !ql.id;
+  if (inView) await shrinkAway(gone);
+  const before = inView ? cardRects() : null;
   for (const it of its) { it.trashed = Date.now(); await DB.put('items', it); }
   if (ql.id) closeQuickLook();
   ql.hover = null; state.selected.clear();
   toast(nItems(its.length) + ' naar de prullenbak');
+  if (inView) wallRemove(gone);
   if (detailId != null) closeDetail(); else renderAll();
+  if (before) slideIn(before);
+}
+/** Het beeld krimpt weg voordat het verdwijnt. */
+function shrinkAway(ids) {
+  if (calm.matches) return Promise.resolve();
+  const els = [...document.querySelectorAll('.wtile, #grid .card')].filter(el => ids.has(el.dataset.id));
+  if (!els.length) return Promise.resolve();
+  els.forEach(el => el.classList.add('gone'));
+  return new Promise(r => setTimeout(r, 250));
+}
+const cardRects = () => new Map([...document.querySelectorAll('#grid .card')].map(el => [el.dataset.id, el.getBoundingClientRect()]));
+/** In het raster schuiven de andere beelden naar hun nieuwe plek in plaats van te verspringen. */
+function slideIn(before) {
+  if (calm.matches) return;
+  for (const el of document.querySelectorAll('#grid .card')) {
+    const o = before.get(el.dataset.id); if (!o) continue;
+    el.style.animation = 'none';
+    const r = el.getBoundingClientRect(), dx = o.left - r.left, dy = o.top - r.top;
+    if (Math.abs(dx) + Math.abs(dy) > 1) el.animate([{ translate: dx + 'px ' + dy + 'px' }, { translate: '0 0' }], { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  }
+}
+/** Een rimpeling over het beeld, alsof er een druppel op valt, op de plek van de muis. */
+let pointerAt = { x: -1, y: -1 };
+addEventListener('pointermove', e => { pointerAt = { x: e.clientX, y: e.clientY }; }, { passive: true });
+function ripple(id) {
+  if (calm.matches) return;
+  const big = [...document.querySelectorAll('#ql .redo-stage > img, .detail-stage > img')].find(el => el.getClientRects().length && el.getBoundingClientRect().width > 0) || null;
+  const hosts = big ? [big] : [...document.querySelectorAll('.wtile[data-id="' + id + '"], #grid .card[data-id="' + id + '"]')].filter(el => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; }).slice(0, 6);
+  for (const host of hosts) {
+    const r = host.getBoundingClientRect(), inside = pointerAt.x >= r.left && pointerAt.x <= r.right && pointerAt.y >= r.top && pointerAt.y <= r.bottom;
+    const cx = inside ? pointerAt.x - r.left : r.width / 2, cy = inside ? pointerAt.y - r.top : r.height / 2;
+    const R = Math.hypot(Math.max(cx, r.width - cx), Math.max(cy, r.height - cy)) * 1.05;
+    const box = h('div', { class: 'ripple', 'aria-hidden': 'true' });
+    if (big) Object.assign(box.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+    for (let i = 0; i < 3; i++) {
+      const ring = h('i'); Object.assign(ring.style, { left: cx + 'px', top: cy + 'px', width: 2 * R + 'px', height: 2 * R + 'px' }); box.append(ring);
+      ring.animate([{ transform: 'translate(-50%,-50%) scale(0)', opacity: 0.95 }, { transform: 'translate(-50%,-50%) scale(1)', opacity: 0 }], { duration: 950, delay: i * 150, easing: 'cubic-bezier(.15,.6,.3,1)', fill: 'both' });
+    }
+    (big ? document.body : host).append(box);
+    setTimeout(() => box.remove(), 1350);
+    const img = big || host.querySelector('img');
+    if (img) img.animate([{ scale: 1 }, { scale: 0.965, offset: 0.18 }, { scale: 1.025, offset: 0.5 }, { scale: 1 }], { duration: 620, easing: 'ease-out' });
+  }
 }
 /** Een hartje dat even omhoog dwarrelt, als bevestiging van Love. */
 function heartFloat(id) {
@@ -1674,7 +1827,7 @@ async function toggleLike(id) {
   const it = state.items.find(i => i.id === id); if (!it) return;
   it.liked = !it.liked; await DB.put('items', it);
   for (const el of document.querySelectorAll('.card[data-id="' + id + '"] .heart, .wtile[data-id="' + id + '"] .heart')) { el.classList.toggle('on', it.liked); if (it.liked) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); } }
-  if (it.liked) heartFloat(id);
+  if (it.liked) { ripple(id); heartFloat(id); }
   const hb = document.querySelector('.detail-panel .like[data-id="' + id + '"]'); if (hb) { hb.classList.toggle('on', it.liked); hb.setAttribute('aria-pressed', it.liked ? 'true' : 'false'); }
   if (state.view.kind === 'liked' && detailId == null) renderGrid();
   renderSide();
@@ -1861,6 +2014,7 @@ function kmItems(q) {
   for (const c of libCols()) add(c.name, 'Collectie', () => setView(colView(c)));
   for (const c of ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc1', '#1e88e5', '#8e24aa', '#ec407a', '#795548', '#111111', '#9e9e9e', '#ffffff']) add('Kleur: ' + colorName(rgbOf(c)), 'Zoek op kleur', () => setColor(c));
   add('Volledig scherm', 'Actie · F', toggleFullscreen);
+  if (state.libs.length > 1) for (const l of state.libs) if (l.id !== state.libId) add('Bibliotheek: ' + l.name, 'Ga naar', () => { state.libId = l.id; saveMeta(); setView({ kind: 'all' }); });
   if (q === 'mcp' && DB.http) out.unshift({ label: 'AI-assistent instellen', hint: 'Nog niet openbaar', run: () => { assistantShown = true; openSettings(); } });
   if (isGreeting(q)) out.unshift({ label: '…', hint: '', run: greetBack });
   if (q) {
@@ -1935,7 +2089,7 @@ function openLook(anchor) {
 
 // ---------- Ontdek: een eindeloze wand die zacht drijft ----------
 const WALL_MIN = 6;
-const wall = { on: false, items: [], cols: [], W: 0, gap: 0, ox: 0, oy: 0, drift: 0, vx: 0, vy: 0, raf: 0, live: new Map(), drag: null, quiet: 0, over: false, speed: 0 };
+const wall = { seq: 0, on: false, items: [], cols: [], W: 0, gap: 0, ox: 0, oy: 0, drift: 0, vx: 0, vy: 0, raf: 0, live: new Map(), drag: null, quiet: 0, over: false, speed: 0 };
 const mod = (a, n) => ((a % n) + n) % n;
 function wallLayout() {
   const el = $('#wall'), vw = el.clientWidth; if (!vw) return;
@@ -1947,10 +2101,30 @@ function wallLayout() {
   wall.cols = Array.from({ length: n }, () => ({ h: 0, tiles: [] }));
   for (const it of wall.items) {
     const c = wall.cols.reduce((a, b) => b.h < a.h ? b : a), hh = Math.round(visual(it) ? W * (it.w ? it.h / it.w : 0.75) : W * 0.72);
-    c.tiles.push({ it, y: c.h, h: hh }); c.h += hh + gap;
+    c.tiles.push({ it, y: c.h, h: hh, n: ++wall.seq, shift: 0 }); c.h += hh + gap;
   }
   for (const el2 of wall.live.values()) el2.remove();
   wall.live.clear();
+}
+/** Hoe ver kolom k is doorgeschoven: eigen positie, drijven, een vaste verspringing per kolom en de correctie na weghalen. */
+const wallOff = (k, col) => wall.oy + wall.drift * (1 + (mod(k, 3) - 1) * 0.35) + mod(k * 197, 977) + ((col.adj && col.adj.get(k)) || 0);
+/** Haalt tegels uit de wand zonder alles opnieuw te leggen: de tegels eronder schuiven omhoog en vullen de plek. */
+function wallRemove(ids) {
+  if (!wall.on || !wall.cols.length) return;
+  const el = $('#wall'), vw = el.clientWidth, step = wall.W + wall.gap, n = wall.cols.length;
+  const left = wall.items.filter(it => !ids.has(it.id));
+  if (left.length === wall.items.length) return;
+  if (wall.cols.some(c => c.tiles.length && c.tiles.every(t => ids.has(t.it.id)))) { wall.items = []; return; } // een kolom raakt leeg: dan opnieuw leggen
+  wall.cols.forEach((col, ci) => {
+    let d = 0; const keep = [];
+    for (const t of col.tiles) { if (ids.has(t.it.id)) { d += t.h + wall.gap; continue; } if (d) { t.y -= d; t.shift += d; } keep.push(t); }
+    if (!d) return;
+    const H = col.h; col.adj = col.adj || new Map();
+    // De herhaling die nu in beeld is blijft op haar plek staan.
+    for (let k = Math.floor(wall.ox / step) - 1; k * step - wall.ox < vw; k++) if (mod(k, n) === ci) col.adj.set(k, (col.adj.get(k) || 0) - Math.floor(wallOff(k, col) / H) * d);
+    col.tiles = keep; col.h = H - d;
+  });
+  wall.items = left;
 }
 function wallTile(t) {
   const it = t.it;
@@ -1968,17 +2142,18 @@ function wallFrame() {
   wall.speed += ((idle ? 0.32 : 0) - wall.speed) * 0.04;
   wall.drift += wall.speed;
   const used = new Set(), world = $('#wallWorld');
+  for (const c of wall.cols) for (const t of c.tiles) if (t.shift) { t.shift *= 0.8; if (Math.abs(t.shift) < 0.5) t.shift = 0; }
   for (let k = Math.floor(wall.ox / step) - 1; k * step - wall.ox < vw; k++) {
     const col = wall.cols[mod(k, n)]; if (!col.h) continue;
-    const x = k * step - wall.ox, off = wall.oy + wall.drift * (1 + (mod(k, 3) - 1) * 0.35) + mod(k * 197, col.h);
+    const x = k * step - wall.ox, off = wallOff(k, col);
     const base = mod(off, col.h);
     for (let i = 0; i < col.tiles.length; i++) {
       const t = col.tiles[i], y0 = t.y - base;
       for (let m = Math.floor((-t.h - 120 - y0) / col.h) + 1; y0 + m * col.h < vh + 120; m++) {
-        const key = k + '|' + m + '|' + i; used.add(key);
+        const key = k + '|' + m + '|' + t.n; used.add(key);
         let node = wall.live.get(key);
         if (!node) { node = wallTile(t); wall.live.set(key, node); world.append(node); }
-        node.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + (y0 + m * col.h).toFixed(1) + 'px,0)';
+        node.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + (y0 + m * col.h + t.shift).toFixed(1) + 'px,0)';
       }
     }
   }
@@ -2032,6 +2207,8 @@ function hoverTarget() {
   if (detailId != null) return [detailId];
   if (ql.id) return [ql.id];
   if (ql.hover) return [ql.hover];
+  const under = document.querySelector('.wtile:hover, #grid .card:hover'); // voor als de aanwijzing nog niet is bijgewerkt
+  if (under && under.dataset.id) return [under.dataset.id];
   return [...state.selected];
 }
 /** Laat een kopie van het beeld naar de verzamelbak vliegen. */
@@ -2335,7 +2512,6 @@ function renderAll() {
 
 // ---------- Gebeurtenissen ----------
 function initEvents() {
-  $('#libSwitch').onclick = libMenu;
   $('#btnAdd').onclick = e => openMenu(e.currentTarget, [
     { label: 'Bestanden kiezen', run: () => $('#file').click() },
     { label: 'Link of beeld-URL plakken', run: async () => {
@@ -2434,7 +2610,7 @@ function initEvents() {
         const ids = hoverTarget();
         if (ids.length) { e.preventDefault(); if (k === 'l') ids.forEach(toggleLike); else collect(ids); return; }
       }
-      if (!sp.space && k === 'r') { const ids = hoverTarget(); if (ids.length) { e.preventDefault(); return trashIds(ids); } }
+      if (!sp.space && k === 'x') { const ids = hoverTarget(); if (ids.length) { e.preventDefault(); return trashIds(ids); } }
     }
     if (ql.id) {
       const i = lastVisible.findIndex(x => x.id === ql.id);

@@ -107,11 +107,11 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   ok(await p.$$eval('.heart-float', e => e.length) === 1 && await p.$eval('.detail-panel .like', e => e.classList.contains('on')), 'L bij een geopend beeld: hartje dwarrelt omhoog en het hartje in het infovenster staat aan');
   await shot('7-beeld'); await p.waitForTimeout(1200);
   ok(await p.$$eval('.heart-float', e => e.length) === 0 && await p.$$eval('.field .lbl, .field label', e => e.every(x => getComputedStyle(x).textTransform === 'none')), 'het hartje verdwijnt weer; kopjes in het infovenster zijn gewone woorden, geen hoofdletters');
-  // R gooit het geopende beeld weg, naar de prullenbak
+  // X gooit het geopende beeld weg, naar de prullenbak
   const t0 = +(await p.textContent('#nav .nav-item:has-text("Prullenbak") .count'));
-  await p.keyboard.press('r'); await p.waitForTimeout(500);
+  await p.keyboard.press('x'); await p.waitForTimeout(900);
   ok(await p.$eval('#detail', e => e.hidden) && +(await p.textContent('#nav .nav-item:has-text("Prullenbak") .count')) === t0 + 1, 'R gooit het geopende beeld weg: het staat in de prullenbak');
-  await p.mouse.move(820, 430); await p.waitForTimeout(300); await p.keyboard.press('r'); await p.waitForTimeout(500);
+  await p.mouse.move(820, 430); await p.waitForTimeout(300); await p.keyboard.press('x'); await p.waitForTimeout(900);
   ok(+(await p.textContent('#nav .nav-item:has-text("Prullenbak") .count')) === t0 + 2, 'R op het beeld onder de muis gooit dat weg');
   await p.click('#nav >> text=Prullenbak'); await p.waitForSelector('.card'); await p.click('.card >> nth=0'); await p.click('.card >> nth=1'); await p.click('#selbar >> text=Terugzetten'); await p.waitForTimeout(400);
   ok(+(await p.textContent('#nav .nav-item:has-text("Prullenbak") .count')) === t0, 'en uit de prullenbak haal je ze gewoon terug');
@@ -120,6 +120,30 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await p.click('.foldbtn'); await p.waitForTimeout(150); ok(await p.$$eval('#nav .auto-dot', e => e.length) > 0, 'klik op Tags klapt ze uit');
   await p.keyboard.press('Control+k'); await p.keyboard.type('kleur: blauw'); await p.keyboard.press('Enter'); await p.waitForTimeout(500);
   ok((await p.textContent('#filters')).includes('Kleur'), 'zoeken op kleur zit in het snelmenu (⌘K)');
+  // Dubbele beelden: hetzelfde bestand komt er niet nog eens bij; hetzelfde beeld in een andere maat wordt gemeld
+  await p.waitForTimeout(1500);
+  const nAll = async () => +(await p.textContent('#nav .nav-item:has-text("Alles") .count'));
+  const n0 = await nAll();
+  await p.setInputFiles('#file', path.join(src, 'groot-foto.png')); await p.waitForTimeout(900);
+  ok(await nAll() === n0 && (await p.textContent('#toasts')).includes('stond al'), 'hetzelfde bestand nog eens toevoegen wordt overgeslagen, met een melding');
+  ok(await p.$$eval('#nav .nav-item:has-text("Dubbele")', e => e.length) === 0, 'zonder dubbele staat er geen melding in de zijbalk');
+  const klein = path.join(tmp, 'poster-klein.jpg');
+  require('child_process').execFileSync('python3', ['-c', 'import sys\nfrom PIL import Image\nim=Image.open(sys.argv[1]).convert("RGB")\nim.resize((im.width//2, im.height//2)).save(sys.argv[2], quality=88)', path.join(src, 'poster-oranje.jpg'), klein]);
+  await p.setInputFiles('#file', klein); await p.waitForTimeout(1200);
+  ok(await nAll() === n0 + 1 && await p.$$eval('#nav .nav-item:has-text("Dubbele") .warn svg', e => e.length) === 1 && (await p.textContent('#nav .nav-item:has-text("Dubbele") .count')) === '1', 'hetzelfde beeld in een andere maat: melding met driehoek in de zijbalk');
+  await p.click('#nav >> text=Dubbele beelden'); await p.waitForSelector('.dupmark'); await p.waitForTimeout(500);
+  ok(await p.$$eval('.dupmark', e => e.map(x => x.textContent).join()) === 'blijft,dubbel', 'de groep toont welk beeld blijft (het grootste) en welk dubbel is');
+  if (shots) await p.screenshot({ path: path.join(shots, 'dubbele.png') });
+  const tr0 = +(await p.textContent('#nav .nav-item:has-text("Prullenbak") .count'));
+  await p.click('#filters >> text=Dubbele opruimen'); await p.click('#dlg .row button:has-text("Opruimen")'); await p.waitForTimeout(600);
+  ok(+(await p.textContent('#nav .nav-item:has-text("Prullenbak") .count')) === tr0 + 1 && await nAll() === n0 && await p.$$eval('#nav .nav-item:has-text("Dubbele")', e => e.length) === 0, 'opruimen zet het kleinere beeld in de prullenbak en de melding verdwijnt');
+  await p.click('[aria-label="Kleurfilter wissen"]'); await p.waitForTimeout(200);
+  await p.click('#mode >> text=Ontdek'); await p.waitForSelector('.wtile'); await p.mouse.move(700, 300); await p.mouse.move(820, 430, { steps: 4 }); await p.waitForTimeout(300);
+  await p.keyboard.press('l'); await p.waitForTimeout(250);
+  if (!await p.$$eval('.wtile .ripple i', e => e.length)) { await p.keyboard.press('l'); await p.waitForTimeout(250); } // het beeld was al een favoriet
+  ok(await p.$$eval('.wtile .ripple i', e => e.length) >= 3, 'een like geeft een rimpeling over het beeld');
+  if (shots) await p.screenshot({ path: path.join(shots, 'rimpel.png') });
+  await p.keyboard.press('l'); await p.waitForTimeout(300);
   await p.click('#nav >> text=Najaar'); await p.waitForTimeout(400); await p.click('#filters >> text=Delen'); await p.waitForSelector('.share-canvas.polaroid');
   ok(await p.$eval('.share-canvas', c => c.width === 1080 && c.height === 1350), 'Delen tekent een polaroid van 1080 × 1350');
   if (shots) await p.screenshot({ path: path.join(shots, 'delen.png') });

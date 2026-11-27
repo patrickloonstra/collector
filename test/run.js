@@ -82,8 +82,12 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) failed+
   ok(!fs.existsSync(path.join(beelden, 'Uit Finder.jpg')) && fs.existsSync(path.join(bak, 'Uit Finder.jpg')), 'prullenbak legen: bestand verhuist naar de map Prullenbak/');
 
   // dubbele naam krijgt een volgnummer, niets wordt overschreven
-  await p.setInputFiles('#file', imgs[0]); await p.waitForFunction(() => document.querySelectorAll('.card').length === 7, null, { timeout: 30000 }); await p.waitForTimeout(300);
   const ext0 = path.extname(imgs[0]), stem = path.basename(imgs[0], ext0);
+  await p.setInputFiles('#file', imgs[0]); await p.waitForTimeout(900);
+  ok(await p.$$eval('.card', e => e.length) === 6 && !fs.existsSync(path.join(beelden, stem + ' 2' + ext0)), 'precies hetzelfde bestand nog eens: overgeslagen, er komt geen dubbele bij');
+  const ander = fs.mkdtempSync(path.join(os.tmpdir(), 'collector-naam-')), zelfdeNaam = path.join(ander, path.basename(imgs[0]));
+  { const { execFileSync } = require('child_process'); execFileSync('python3', ['-c', 'import sys\nfrom PIL import Image, ImageOps\nImageOps.mirror(Image.open(sys.argv[1]).convert("RGB")).save(sys.argv[2])', imgs[0], zelfdeNaam]); }
+  await p.setInputFiles('#file', zelfdeNaam); await p.waitForFunction(() => document.querySelectorAll('.card').length === 7, null, { timeout: 30000 }); await p.waitForTimeout(300);
   ok(fs.existsSync(path.join(beelden, stem + ' 2' + ext0)), 'zelfde bestandsnaam nogmaals: bewaard als "' + stem + ' 2' + ext0 + '"');
 
   // beveiliging: andere websites en paden buiten de map

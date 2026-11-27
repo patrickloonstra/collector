@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
+const crypto = require('crypto');
 const { Library, STORES, BLOBS } = require('./library');
 
 const UI = path.join(__dirname, '..', 'ui');
@@ -96,6 +97,14 @@ async function start(opts) {
       if (m === 'GET') return json(res, 200, lib.get(a, b));
       if (m === 'PUT') { lib.put(a, JSON.parse((await readBody(req)).toString('utf8'))); return json(res, 200, { ok: true }); }
       if (m === 'DELETE') { lib.del(a, b); return json(res, 200, { ok: true }); }
+    }
+    // Vingerafdruk van het bestand zelf, om dubbele beelden te herkennen zonder het hele bestand naar de interface te sturen.
+    if (what === 'hash' && a && m === 'GET') {
+      const p = await lib.blobPath('fulls', a);
+      if (!p) throw fail(404, 'niet gevonden');
+      const sum = crypto.createHash('sha256');
+      await new Promise((ok, no) => fs.createReadStream(p).on('data', d => sum.update(d)).on('end', ok).on('error', no));
+      return json(res, 200, { hash: sum.digest('hex') });
     }
     if (what === 'meta' && a) {
       if (m === 'GET') return json(res, 200, lib.getMeta(a));

@@ -2,6 +2,13 @@
 
 Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelichting bij de release.
 
+## 0.1.11
+
+- **Dubbele beelden:** voeg je een bestand toe dat er al in staat, dan wordt het overgeslagen en zegt de app hoeveel dat er waren. Staan er al dubbele in je bibliotheek, ook hetzelfde beeld in een andere maat, dan verschijnt in de zijbalk "Dubbele beelden" met een driehoekje. Daar zie je per groep welk beeld blijft en ruim je de rest in één keer op. Ze gaan naar de prullenbak; tags, collecties en hartjes verhuizen mee naar het beeld dat blijft.
+- **X gooit weg** (was R). Het beeld krimpt weg en de beelden eromheen schuiven op.
+- **Een like rimpelt:** bij L loopt er een rimpeling over het beeld, vanaf de plek van je muis.
+- **Eén bibliotheek:** de keuze tussen bibliotheken is weg. Onderin de zijbalk staat nu "Instellingen" voluit, met de plus ernaast. Had je meer bibliotheken, dan wissel je via het snelmenu (⌘K).
+
 ## 0.1.10
 
 - Kleine verbeteringen onder de motorkap.

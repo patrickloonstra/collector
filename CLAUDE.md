@@ -24,17 +24,20 @@ Mac-app (Electron) voor beeldreferenties. De gebruiker is ontwerper, geen ontwik
 ## Vorm
 
 - De app opent in **Ontdek** (een eindeloze, drijvende wand, `wall*` in `ui/app.js`), niet in een lijst. Raster is de tweede keuze.
-- Sneltoetsen op het beeld onder de muis (of het geopende beeld): L love, C collect (naar de verzamelbak linksonder, `bak*`), R weggooien naar de prullenbak, spatie voorbeeld. Verder F volledig scherm, H herontdekken, ⌘K snelmenu.
+- Sneltoetsen op het beeld onder de muis (of het geopende beeld): L love, C collect (naar de verzamelbak linksonder, `bak*`), X weggooien naar de prullenbak (het beeld krimpt weg en de rest schuift op, `shrinkAway`, `wallRemove`), spatie voorbeeld. Verder F volledig scherm, H herontdekken, ⌘K snelmenu.
 - Geen kleurbolletjes in de zijbalk; zoeken op kleur zit in het snelmenu.
 - Beweging hoort erbij, maar respecteer `prefers-reduced-motion` (`calm`).
 - Elke start: een kort openingsscherm (logo, naam, getypte begroeting in een willekeurige taal, krabbelpatroon) dat naar beneden wegveegt. Alleen de allereerste keer volgt de uitleg in drie stappen (`onboarded` in de app-instellingen).
 - De gegevens van een beeld staan in een zwevend, inklapbaar venster rechts, nooit vastgeklikt aan de rand. Op het canvas opent het bij één klik.
-- Het venster heeft geen titelbalk. Linksonder staan alleen de bibliotheek, een plus (toevoegen) en een tandwiel (Instellingen). Status, opslag, back-up, versie, extensie en kopen staan in Instellingen.
+- Het venster heeft geen titelbalk. Linksonder staan alleen Instellingen en een plus (toevoegen). Status, opslag, back-up, versie, extensie en kopen staan in Instellingen.
 - De hoofdhandeling is beelden erin slepen; knoppen daarvoor blijven klein.
 - Meldingen (update, aanbieding, nieuws) zijn gestapelde kaartjes linksonder (`notes*`), weg te klikken en terug te lezen in Instellingen > Nieuws. Nieuws komt uit `site/nieuws.json` op de website; links mogen alleen naar patrickloonstra.nl wijzen.
 - Rechtsklik op een beeld geeft een ruim menu om het aan een collectie toe te voegen (`itemMenu`).
 - Delen (`openShare`, `drawPolaroid`, `sharePdf`) maakt van een collectie een polaroid, een verhaal of een PDF. Alles wordt in de app zelf getekend; de PDF is met de hand opgebouwd (`buildPdf`), zonder bibliotheek.
 - Geen AI die beelden naar buiten stuurt. Ordenen met AI loopt via de MCP-server (`mcp/server.js`) en de assistent van de gebruiker zelf; de gebruiker zet dat aan in Instellingen > AI-assistent (kijken en ordenen apart, standaard uit; bewaard als `mcp` in de bibliotheek en afgedwongen door de motor in `server/server.js`). De uitleg is `openAssistantHelp`. **Nog niet openbaar:** de instelling verschijnt pas na `mcp` in het snelmenu, en website, README en wijzigingenlijst noemen de functie niet. De gebruiker kondigt haar later apart aan.
+- Dubbele beelden (`dupGroups`, `dupIndex`, `cleanDups`): elk beeld krijgt een vingerafdruk van het bestand (`hash`, SHA-256 van het bestand bij toevoegen) en van wat er te zien is (`ph`). Hetzelfde bestand opnieuw toevoegen wordt overgeslagen; wat al dubbel is staat in de zijbalk onder "Dubbele beelden" met een driehoekje. Opruimen gaat altijd naar de prullenbak.
+- Eén bibliotheek: er is geen kiezer meer. Onderin de zijbalk staan "Instellingen" (voluit) en de plus. De code voor meer bibliotheken bestaat nog; wisselen kan alleen via het snelmenu als er meer dan één is.
+- Love geeft een rimpeling over het beeld (`ripple`) en een hartje.
 - Ruimte besparen (`optimizeAll`) zet grote JPG's en PNG's om naar WebP; het origineel verhuist naar `Prullenbak/`.
 
 ## Beeldmerk en README
