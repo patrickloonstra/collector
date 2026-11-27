@@ -750,3 +750,7 @@ html[data-shell="mac"] .top { padding-top: 12px; }
 .ql-zoom button { border: 0; background: none; color: inherit; height: 30px; min-width: 30px; border-radius: 999px; font-size: 16px; line-height: 1; display: grid; place-items: center; }
 .ql-zoom button:hover { background: rgba(255,255,255,.14); }
 .ql-zoom .ql-pct { font-size: 12.5px; min-width: 54px; font-variant-numeric: tabular-nums; }
+
+/* De golf over de hele wand: breder en zachter dan de rimpeling op het beeld zelf */
+.ripple.wide { z-index: 4; border-radius: 0; }
+.ripple.wide i { border-width: 2px; border-color: rgba(255,255,255,.55); box-shadow: 0 0 0 1px rgba(0,0,0,.05), 0 0 30px rgba(255,255,255,.2); background: none; mix-blend-mode: soft-light; }

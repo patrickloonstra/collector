@@ -1806,7 +1806,30 @@ function ripple(id) {
     (big ? document.body : host).append(box);
     setTimeout(() => box.remove(), 1350);
     const img = big || host.querySelector('img');
-    if (img) img.animate([{ scale: 1 }, { scale: 0.965, offset: 0.18 }, { scale: 1.025, offset: 0.5 }, { scale: 1 }], { duration: 620, easing: 'ease-out' });
+    if (img) img.animate([{ scale: 1 }, { scale: 0.95, offset: 0.18 }, { scale: 1.035, offset: 0.5 }, { scale: 0.992, offset: 0.78 }, { scale: 1 }], { duration: 760, easing: 'ease-out' });
+    if (!big && host === hosts[0]) dropWave(r.left + cx, r.top + cy, new Set(hosts));
+  }
+}
+/** De golf loopt door naar de beelden eromheen: dichtbij deinen ze flink mee, verder weg later en steeds minder, zoals rond een druppel in water. */
+function dropWave(ox, oy, skip) {
+  const area = $('#main').getBoundingClientRect(), far = Math.hypot(Math.max(ox - area.left, area.right - ox), Math.max(oy - area.top, area.bottom - oy));
+  const box = h('div', { class: 'ripple wide', 'aria-hidden': 'true' });
+  Object.assign(box.style, { position: 'fixed', left: area.left + 'px', top: area.top + 'px', width: area.width + 'px', height: area.height + 'px' });
+  for (let i = 0; i < 2; i++) {
+    const ring = h('i'); Object.assign(ring.style, { left: (ox - area.left) + 'px', top: (oy - area.top) + 'px', width: 2 * far + 'px', height: 2 * far + 'px' }); box.append(ring);
+    ring.animate([{ transform: 'translate(-50%,-50%) scale(0)', opacity: 0.55 }, { transform: 'translate(-50%,-50%) scale(1)', opacity: 0 }], { duration: 1500, delay: 120 + i * 220, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'both' });
+  }
+  document.body.append(box); setTimeout(() => box.remove(), 2000);
+  for (const el of document.querySelectorAll('.wtile, #grid .card')) {
+    if (skip.has(el)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.bottom < -50 || r.top > innerHeight + 50 || r.right < 0 || r.left > innerWidth) continue;
+    const dx = r.left + r.width / 2 - ox, dy = r.top + r.height / 2 - oy, d = Math.hypot(dx, dy) || 1, amp = 18 * Math.exp(-d / 460);
+    if (amp < 0.5) continue;
+    const ux = dx / d, uy = dy / d, target = el.classList.contains('wtile') ? el.querySelector('img, .linkcard') : el; if (!target) continue;
+    const at = k => (ux * amp * k).toFixed(1) + 'px ' + (uy * amp * k).toFixed(1) + 'px';
+    target.animate([{ translate: '0 0', scale: 1 }, { translate: at(1), scale: 1 - amp * 0.0028, offset: 0.28 }, { translate: at(-0.4), scale: 1 + amp * 0.0014, offset: 0.6 }, { translate: at(0.12), scale: 1, offset: 0.82 }, { translate: '0 0', scale: 1 }],
+      { duration: 900, delay: d * 0.6, easing: 'ease-out' });
   }
 }
 /** Een hartje dat even omhoog dwarrelt, als bevestiging van Love. */

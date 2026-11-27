@@ -2,6 +2,10 @@
 
 Het bovenste blok hoort bij de versie in `package.json` en verschijnt als toelichting bij de release.
 
+## 0.1.13
+
+- **De rimpeling loopt door:** geef je een beeld een like, dan deinen de beelden eromheen mee. Dichtbij flink, verder weg later en steeds minder, zoals rond een druppel in water. Er loopt ook een zachte kring over de hele wand.
+
 ## 0.1.12
 
 - **Inzoomen in de snelle weergave:** open een beeld met spatie en zoom met het wiel of met knijpen, op de plek van je muis. Onderin staan plus en min; ook de toetsen + en − werken, en 0 zet het beeld terug. Ingezoomd sleep je het beeld rond. Dubbelklik zoomt in en weer uit.

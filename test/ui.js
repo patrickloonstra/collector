@@ -142,6 +142,7 @@ let failed = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m);
   await p.keyboard.press('l'); await p.waitForTimeout(250);
   if (!await p.$$eval('.wtile .ripple i', e => e.length)) { await p.keyboard.press('l'); await p.waitForTimeout(250); } // het beeld was al een favoriet
   ok(await p.$$eval('.wtile .ripple i', e => e.length) >= 3, 'een like geeft een rimpeling over het beeld');
+  ok(await p.$$eval('.ripple.wide i', e => e.length) === 2 && await p.evaluate(() => [...document.querySelectorAll('.wtile img')].filter(i => i.getAnimations().some(a => a.effect && a.effect.getKeyframes().some(k => k.translate))).length) >= 2, 'de golf loopt door: ook de beelden eromheen deinen mee');
   if (shots) await p.screenshot({ path: path.join(shots, 'rimpel.png') });
   await p.keyboard.press('l'); await p.waitForTimeout(300);
   // Soort beeld: keuzelijst onderin; zonder het beeldmodel biedt hij aan de soorten te herkennen
